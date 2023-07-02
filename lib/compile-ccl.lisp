@@ -171,7 +171,7 @@
 (defun target-env-modules (&optional (target
 				      (backend-name *host-backend*)))
   (append *env-modules*
-          (let* ((ffi (ecase target
+          (let* ((ffi (case target
                         (:linuxppc32 'ffi-linuxppc32)
                         (:darwinppc32 'ffi-darwinppc32)
                         (:darwinppc64 'ffi-darwinppc64)
@@ -193,10 +193,11 @@
                         (:linuxarm64 'ffi-linuxarm64))))
             ;; Both arm64 targets delegate to the shared AAPCS64
             ;; implementation in ffi-arm64; build it alongside the OS
-            ;; module.
-            (if (memq target '(:darwinarm64 :linuxarm64))
-              (list 'ffi-arm64 ffi)
-              (list ffi)))))
+            ;; module.  A target without an ffi module (e.g. one that doesn't
+            ;; need the ffi translators) gets none.
+            (cond ((memq target '(:darwinarm64 :linuxarm64))
+                   (list 'ffi-arm64 ffi))
+                  (ffi (list ffi))))))
 
 
 (defun target-compiler-modules (&optional (target
