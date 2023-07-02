@@ -148,12 +148,12 @@ Will differ from *compiling-file* during an INCLUDE")
     (when (and target-p (not (setq backend (find-backend target))))
       (warn "Unknown :TARGET : ~S.  Reverting to ~s ..." target *fasl-target*)
       (setq target *fasl-target*  backend *target-backend*))
-    (if (eq *target-backend* *host-backend*)
+    (if (eq backend *host-backend*)
       (when features-p
         (setq symbols '(*features*)
               values (list (append (if (listp features) features (list features)) *features*))))
       (setq symbols '(*features*)
-            values (list (setup-target-features *target-backend* *features*))
+            values (list (setup-target-features backend *features*))
             save-source-locations nil))
     (multiple-value-bind (output-file truename warnings-p serious-p)
         (loop
@@ -208,7 +208,7 @@ Will differ from *compiling-file* during an INCLUDE")
               "Compile destination ~S is not a ~A file!"
               output-file (pathname-type
                            (backend-target-fasl-pathname
-                            *target-backend*))))
+                            target-backend))))
     (let* ((*fasl-deferred-warnings* nil) ; !!! WITH-COMPILATION-UNIT ...
            (*fasl-save-local-symbols* save-local-symbols)
            (*save-source-locations* save-source-locations)
