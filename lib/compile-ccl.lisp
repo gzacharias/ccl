@@ -161,25 +161,24 @@
 (defun target-env-modules (&optional (target
 				      (backend-name *host-backend*)))
   (append *env-modules*
-          (list
-           (ecase target
-             (:linuxppc32 'ffi-linuxppc32)
-             (:darwinppc32 'ffi-darwinppc32)
-             (:darwinppc64 'ffi-darwinppc64)
-             (:linuxppc64 'ffi-linuxppc64)
-	     (:darwinx8632 'ffi-darwinx8632)
-             (:linuxx8664 'ffi-linuxx8664)
-             (:darwinx8664 'ffi-darwinx8664)
-             (:freebsdx8664 'ffi-freebsdx8664)
-             (:solarisx8664 'ffi-solarisx8664)
-             (:win64 'ffi-win64)
-             (:linuxx8632 'ffi-linuxx8632)
-             (:win32 'ffi-win32)
-             (:solarisx8632 'ffi-solarisx8632)
-             (:freebsdx8632 'ffi-freebsdx8632)
-             (:linuxarm 'ffi-linuxarm)
-             (:androidarm 'ffi-androidarm)
-             (:darwinarm 'ffi-darwinarm)))))
+          (case target
+            (:linuxppc32 '(ffi-linuxppc32))
+            (:darwinppc32 '(ffi-darwinppc32))
+            (:darwinppc64 '(ffi-darwinppc64))
+            (:linuxppc64 '(ffi-linuxppc64))
+            (:darwinx8632 '(ffi-darwinx8632))
+            (:linuxx8664 '(ffi-linuxx8664))
+            (:darwinx8664 '(ffi-darwinx8664))
+            (:freebsdx8664 '(ffi-freebsdx8664))
+            (:solarisx8664 '(ffi-solarisx8664))
+            (:win64 '(ffi-win64))
+            (:linuxx8632 '(ffi-linuxx8632))
+            (:win32 '(ffi-win32))
+            (:solarisx8632 '(ffi-solarisx8632))
+            (:freebsdx8632 '(ffi-freebsdx8632))
+            (:linuxarm '(ffi-linuxarm))
+            (:androidarm '(ffi-androidarm))
+            (:darwinarm '(ffi-darwinarm)))))
 
 
 (defun target-compiler-modules (&optional (target
