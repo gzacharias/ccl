@@ -22,8 +22,10 @@
 
 
 (defmacro defxloadfaslop (n arglist &body body)
-  `(setf (svref *xload-fasl-dispatch-table* ,n)
-         (nfunction ,n (lambda ,arglist ,@body))))
+  `(progn
+     (record-source-file ',n 'xfaslop)
+     (setf (svref *xload-fasl-dispatch-table* ,n)
+         (nfunction (xfaslop ,n) (lambda ,arglist ,@body)))))
 
 (defmacro xload-copy-faslop (n)
   `(let* ((n ,n))
