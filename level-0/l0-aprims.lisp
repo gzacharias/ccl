@@ -51,7 +51,7 @@
 (dolist (p %all-packages%)
   (setf (pkg.lock p) (make-read-write-lock)))
 
-(defparameter %all-packages-lock% nil)
+(defvar %all-packages-lock% nil)
 
 
 
