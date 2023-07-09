@@ -208,7 +208,9 @@
       (setq fulltag (logand (the (unsigned-byte 8) (typecode x)) x8664::fulltagmask))
       (or (= fulltag x8664::fulltag-nodeheader-0)
           (= fulltag x8664::fulltag-nodeheader-1))))
-  )
+  #+cvm-target
+  (cvm-gvectorp x))
+
 
 
 (setf (type-predicate 'gvector) 'gvectorp)

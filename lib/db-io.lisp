@@ -847,7 +847,7 @@ satisfy the optional predicate PREDICATE."
 
 (defun load-os-constant (sym &optional query)
   (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
-    (return-from load-os-constant (if query t nil)))
+    (return-from load-os-constant nil))
   (let ((val (do-interface-dirs (d)
 		    (let* ((v (db-lookup-constant (db-constants d) sym)))
 		      (when v (return v))))))
@@ -1093,13 +1093,15 @@ satisfy the optional predicate PREDICATE."
                                   (load-os-constant sym)))
                                (1 (makunbound sym) (load-os-constant sym))))
                            (values sym source))
-                         (let* ((fv (%load-var sym nil)))
-                           (values
-                            (%foreign-access-form `(%reference-external-entry-point (load-time-value ,fv))
-                                                  (fv.type fv)
-                                                  0
-                                                  nil)
-                            source)))))))
+                         (if (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+                             (values `(cvm-os-constant ',sym) source)
+                           (let* ((fv (%load-var sym nil)))
+                             (values
+                              (%foreign-access-form `(%reference-external-entry-point (load-time-value ,fv))
+                                                    (fv.type fv)
+                                                    0
+                                                    nil)
+                              source))))))))
                 (string
                  (let* ((val 0)
                         (len (length sym)))

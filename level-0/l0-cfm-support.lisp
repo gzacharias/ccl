@@ -610,7 +610,7 @@ return a fixnum representation of that address, else return NIL."
                                    :address n
                                    :unsigned-fullword)))
                (unless (eql 0 addr) addr))
-             #+x8664-target
+             #+(or x8664-target cvm-target)
              (let* ((addr (ff-call (%kernel-import target::kernel-import-FindSymbol)
                                    :address handle
                                    :address n
@@ -737,6 +737,8 @@ return a fixnum representation of that address, else return NIL."
     (entry->addr entry addr)
     (shlib-containing-address addr name)))
 
+
+#-CVM-TARGET  ;; Too slow, do in lap.  Investigate why later
 (defun soname-from-mach-header (header)
   (do* ((p (%inc-ptr header
                      #+64-bit-target (record-length :mach_header_64)
