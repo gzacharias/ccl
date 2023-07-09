@@ -211,7 +211,9 @@
   #+arm64-target
   (= (the fixnum (logand (the fixnum (typecode x)) arm64::tagmask))
      arm64::tag-nodeheader)
-  )
+  #+cvm-target
+  (cvm-gvectorp x))
+
 
 
 (setf (type-predicate 'gvector) 'gvectorp)
