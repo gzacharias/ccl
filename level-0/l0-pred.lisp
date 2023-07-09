@@ -1023,7 +1023,7 @@
 
 
 ;;; This is actually set to an alist in the xloader.
-(defparameter *istruct-cells* nil)
+(defvar *istruct-cells* nil)
 
 ;;; This should only ever push anything on the list in the cold
 ;;; load (e.g., when running single-threaded.)
