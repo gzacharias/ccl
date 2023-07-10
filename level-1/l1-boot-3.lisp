@@ -41,8 +41,8 @@
 )
 
 (set-periodic-task-interval .33)
-(setq cmain xcmain)
-(setq %err-disp %xerr-disp)
+(defparameter cmain xcmain)
+(defparameter %err-disp %xerr-disp)
 
 ;;;end of l1-boot-3.lisp
 
