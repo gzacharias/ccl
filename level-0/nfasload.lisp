@@ -807,6 +807,7 @@
 ;; list of lfuns and (source-fn-name vector-of-lfuns external-format id), the latter put there by fasloading.
 (defvar *code-covered-functions* nil)
 
+#-CVM-TARGET ;; this is the only thing in level-0 that uses structure-typep, avoid having to support it!
 (defun register-code-covered-functions (functions &optional external-format id)
   ;; unpack the parent-note references - see comment at fcomp-digest-code-notes
   (labels ((reg (lfun refs)
