@@ -21,7 +21,13 @@
 (defparameter *code-modules-not-for-cvm*
   '(backtrace-lds))
 
-;#+compile-level-0
+
+;; Can't use backend-target-fasl-pathname mechanism, because it interferes with
+;; the VM attempting to load the files as source in the same lisp, because
+;; fasl-file-p checks all known backends!
+(defvar *.cvm-output-pathname* #P".cvmsrc")
+
+
 (defun test-vm (&optional force)
   ;; Don't really understand the intended way of doing this.  Any attempt to
   ;; use a target ends up calling FIND-BACKEND, but there is no cvm backend until
@@ -46,105 +52,28 @@
          (*save-source-locations* NIL #+no *ccl-save-source-locations*)
          (*cerror-on-constant-redefinition* t)
          (*warn-if-redefine-kernel* t)
-         ;; Can't bind *.fasl-pathname* because that's used to load auxilliary macro files etc.
-         (.fasl-pathname (backend-target-fasl-pathname *cvm-backend*))
          (*package* (find-package :ccl))
          (*save-doc-strings* t)
          (*fasl-save-doc-strings* t))
     ;; don't really need this now that putting everything in bsfasls;
     (when force
-      (mapc #'delete-file (directory (merge-pathnames .fasl-pathname "ccl:level-0;**;*"))))
+      (mapc #'delete-file (directory (merge-pathnames *.cvm-output-pathname* "ccl:level-0;**;*"))))
     (with-global-optimization-settings ()
       (dolist (dir '("ccl:level-0;" "ccl:level-0;CVM;"))
-        (ensure-directories-exist "ccl:level-0;cvmfasls;")
-        (let ((outpath (merge-pathnames "ccl:level-0;cvmfasls;" .fasl-pathname)))
+        (ensure-directories-exist "ccl:level-0;cvmsrcs;")
+        (let ((outpath (merge-pathnames "ccl:level-0;cvmsrcs;" *.cvm-output-pathname*)))
           (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-            do (let* ((fasl (merge-pathnames outpath src)))
-                 (when force (assert (not (probe-file fasl)))) ;; Check for duplicate filenames...
+            do (let* ((output (merge-pathnames outpath src)))
+                 (when force (assert (not (probe-file output)))) ;; Check for duplicate filenames...
                  (when (or force
-                           (not (probe-file fasl))
+                           (not (probe-file output))
                            (> (file-write-date src)
-                              (file-write-date fasl)))
+                              (file-write-date output)))
                    (setq *nx-speed* (max 1 *nx-speed*))
                    (setq *nx-safety* (min 1 *nx-safety*))
                    ;; This sets up the target:: and os:: package nicknames and *target-ftd*
                    (with-cross-compilation-target (:darwincvm)
-                     (compile-file src :target :darwincvm :features nil :output-file fasl :verbose t))))))))))
-#+debug
-(progn
-
-  (macrolet ((expn (&rest names)
-               `(progn
-                  ,@(loop for name in names
-                      collect `(defun ,name (&rest args) (cons ',name args))))))
-    (expn $bs-package $bs-symbol $bs-cons-function $bs-init-function $bs-istruct-cell $bs-quote $bs-make-uvector $bs-init-uvector
-          $bs-gvector $bs-uvector $bs-eval))
-
-(defun ppfile (file)
-  (with-open-file (stream (merge-pathnames file
-                                           (merge-pathnames "ccl:level-0;cvmfasls;"
-                                                            (backend-target-fasl-pathname *cvm-backend*))))
-    (let ((*loader-table* nil))
-      (declare (special *loader-table*))
-      (loop for expr = (read stream nil stream) until (eq expr stream)
-        as (op . args) = expr
-        do (let ((*print-array* t))
-             (pprint
-              (cons op
-                    (cond ((and (eq op 'setq) (eql (length args) 2))
-                           (eval expr)
-                           (setq *print-array* nil)
-                           `(,(first args) ',(eval (second args))))
-                          (t (mapcar 'eval args))))))))))
-)
-
-#+compile-all-except-level-0
-(defun test-vm ( &optional force)
-  ;; Don't really understand the intended way of doing this.  Any attempt to
-  ;; use a target ends up calling FIND-BACKEND, but there is no backend until
-  ;; these files are loaded, so just do it.
-  (load "ccl:compiler;cvm;cvm-arch.lisp")
-  (load "ccl:compiler;cvm;cvm-backend.lisp")
-  ;; So at this point we have a compile-ccl loaded up, and systems loaded up.
-  ;; So it has our changes, but it was compiled with target local system, so can't
-  ;; really use #+target to 
-  (let ((*warn-if-redefine-kernel* nil))
-    ;; Stuff we've redefined.  Until build a new lisp
-    (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-    (load "ccl:lib;db-io.lisp")
-    (load "ccl:lib;foreign-types.lisp")
-    (load "ccl:lib;compile-ccl.lisp")
-    (load  "ccl:compiler;nx1.lisp")
-    (load "ccl:lib;macros.lisp"))
-  (let ((*level-1-modules*
-         (set-difference *level-1-modules* *level-1-not-for-cvm*))
-        (*compiler-modules*
-         (set-difference *compiler-modules* *compiler-modules-not-for-cvm*))
-        (*aux-modules*
-         (set-difference *aux-modules* *aux-modules-not-for-cvm*))
-        (*code-modules*
-         (set-difference *code-modules* *code-modules-not-for-cvm*))
-        (*compiler-modules*
-         (set-difference *compiler-modules* *compiler-modules-not-for-cvm*)))
-    ;; Ok, this is confusing.   RIGHT NOW, ON THIS HOST, we want to be running BSCOMPILE as pass2.
-    ;;   But on the remote host, once we bootstrap, we want to be loading up a native compiler.
-    ;;   Which doesn't exist yet.  But really will want to run whichever backend is  *target-backend*
-    ;;  there, so have to be able to compile bscompile as well.
-    ;; *** RIGHT NOW JUST TESTING HOW MUCH ARCH/BACKEND STUFF IS NEEDED TO COMPILE ALL OF CCL. Worry
-    ;;  about runtime later.
-    (cross-compile-ccl :darwincvm force)))
-
-#|
-   (target-compile-modules 'nxenv target force)
-    (target-compile-modules *compiler-modules* target force)
-    (target-compile-modules (target-compiler-modules arch) target force)
-    (target-compile-modules (target-level-1-modules target) target force)
-    (target-compile-modules (target-lib-modules target) target force)
-    (target-compile-modules *sysdef-modules* target force)
-    (target-compile-modules *aux-modules* target force)
-    (target-compile-modules *code-modules* target force)
-    (target-compile-modules (target-xdev-modules arch) target force)))
-|#
+                     (compile-file src :target :darwincvm :features nil :output-file output :verbose t))))))))))
 
 
 (defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
@@ -162,85 +91,46 @@
       (pprint bslambda)
       bslambda)))
   
+;; So all this needs to get vm versions, or be pre-built into the vm.
+;"level-0/X86/X8664/x8664-bignum" "level-0/X86/x86-array" "level-0/X86/x86-clos" "level-0/X86/x86-def" "level-0/X86/x86-float"
+;"level-0/X86/x86-hash" "level-0/X86/x86-io""level-0/X86/x86-misc""level-0/X86/x86-numbers""level-0/X86/x86-pred"
+;"level-0/X86/x86-symbol""level-0/X86/x86-utils"
+
+;"level-0/l0-aprims""level-0/l0-array""level-0/l0-bignum32" "level-0/l0-bignum64" "level-0/l0-cfm-support"
+;"level-0/l0-complex""level-0/l0-def""level-0/l0-error""level-0/l0-float""level-0/l0-hash""level-0/l0-init""level-0/l0-int"
+;"level-0/l0-io""level-0/l0-misc""level-0/l0-numbers""level-0/l0-pred""level-0/l0-symbol""level-0/l0-utils""level-0/nfasload"
+
+
+(defun bscompile-for-vm (files &key (verbose t))
+  ;(bsload)
+  (require 'faslenv "ccl:xdump;faslenv")
+  (unless (consp files) (setq files (list files)))
+  (let* ((*features* (cons :cross-compiling *features*))
+         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
+    (let* ((*build-time-optional-features* nil)
+           (*save-source-locations* nil)
+           (cd (current-directory))
+           (*cerror-on-constant-redefinition* nil)
+           (*warn-if-redefine-kernel* nil))
+      (unwind-protect
+          (with-global-optimization-settings ()
+            (setf (current-directory) "ccl:")
+            (loop for file in files
+              as output-file = (merge-pathnames *.cvm-output-pathname* file)
+              ;; Compile file complains if it's not a fasl file.
+              when (probe-file output-file) do (delete-file output-file)
+              do (compile-file file
+                               :target :cvm
+                               :output-file output-file
+                               :verbose verbose)))
+        (setf (current-directory) cd)))))
 
   
 
-(defparameter *real-backend* (find-backend :darwinx8664))
-#+old
-(defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "TEST-FN")))
-  (when (eq (car lambda-expr) 'defun)
-    (setq lambda-expr (cons 'lambda (cddr lambda-expr))))
-  (assert (lambda-expression-p lambda-expr))
-  (let ((*host-backend* (copy-backend *host-backend*)))
-    (declare (special *host-backend*))
-    (setf (backend-p2-compile *host-backend*) 'ev2-compile)
-    (handler-bind ((error (lambda (c)
-                            (setq *host-backend* *real-backend*)
-                            (error c))))
-      (compile sym lambda-expr)))
-  (let ((lambda (ev2-lfun-bslambda (symbol-function sym))))
-    (if print
-      (pprint lambda)
-      lambda)))
-
-
-
-(unadvise compile-named-function :name bscompile)
-(unadvise x862-compile :name bscompile)
-(unadvise find-module :name bscompile)
-(unadvise compile-file :name bscompile)
-(unadvise find-backend :name bscompile)
+;; Use the first pass of the file compiler, but do our own alternate output.
 (unadvise fasl-dump-file :name bscompile)
-(when (fboundp 'setup-xload-target-parameters)
-  (unadvise setup-xload-target-parameters :name bscompile))
-(when (fboundp 'xfasload)
-  (unadvise xfasload :name bscompile))
-
-;#+compile-for-vm
-(progn
-  ;; So all this needs to get vm versions, or be pre-built into the vm.
-  ;"level-0/X86/X8664/x8664-bignum" "level-0/X86/x86-array" "level-0/X86/x86-clos" "level-0/X86/x86-def" "level-0/X86/x86-float"
-  ;"level-0/X86/x86-hash" "level-0/X86/x86-io""level-0/X86/x86-misc""level-0/X86/x86-numbers""level-0/X86/x86-pred"
-  ;"level-0/X86/x86-symbol""level-0/X86/x86-utils"
-
-  ;"level-0/l0-aprims""level-0/l0-array""level-0/l0-bignum32" "level-0/l0-bignum64" "level-0/l0-cfm-support"
-  ;"level-0/l0-complex""level-0/l0-def""level-0/l0-error""level-0/l0-float""level-0/l0-hash""level-0/l0-init""level-0/l0-int"
-  ;"level-0/l0-io""level-0/l0-misc""level-0/l0-numbers""level-0/l0-pred""level-0/l0-symbol""level-0/l0-utils""level-0/nfasload"
-
-  ;(bscompile-for-vm "ccl:level-0;l0-aprims.lisp")
-
-
-
-
-  ;; (bscompile-for-vm "ccl:level-0;l0-aprims")
-  (defun bscompile-for-vm (files &key (verbose t))
-    ;(bsload)
-    (require 'faslenv "ccl:xdump;faslenv")
-    (unless (consp files) (setq files (list files)))
-    (let* ((*features* (cons :cross-compiling *features*))
-           (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
-      (let* ((*build-time-optional-features* nil)
-             (*save-source-locations* nil)
-             (cd (current-directory))
-             (*cerror-on-constant-redefinition* nil)
-             (*warn-if-redefine-kernel* nil))
-        (unwind-protect
-            (with-global-optimization-settings ()
-              (setf (current-directory) "ccl:")
-              (loop for file in files
-                as output-file = (merge-pathnames  file)
-                ;; Compile file complains if it's not a fasl file.
-                when (probe-file output-file) do (delete-file output-file)
-                do (compile-file file
-                                 :target :cvm
-                                 :output-file output-file
-                                 :verbose verbose)
-                do (ed output-file)))
-          (setf (current-directory) cd)))))
-
-  (unadvise fasl-dump-file :name bscompile)
-  (advise fasl-dump-file
-          (progn
+(advise fasl-dump-file
+        (progn
           (if (eq *fasl-target* :darwincvm)
             (destructuring-bind (gnames goffsets forms hash output-file) arglist
               (assert (null gnames))
@@ -249,29 +139,6 @@
               (ev2-output-compiled-file forms hash output-file))
             (:do-it)))
           :when :around :name bscompile)
-
-  #+NO(defvar *use-bscompile-now* nil)
-
-  (unadvise compile-named-function :name bscompile)
-  #+NO(advise compile-named-function
-          (let ((*use-bscompile-now* (and *compiling-file*
-                                          ;; Only time we have a load-time-eval-token is when called form
-                                          ;; fcomp-named-function or from nx1-load-time-value, exactly the
-                                          ;; two cases we want to intercept.
-                                          (not (eq (getf (cdr arglist) :load-time-eval-token 'no) 'no)))))
-
-            (:do-it))
-          :when :around :name bscompile)
-
-  (unadvise x862-compile :name bscompile)
-  #+NO(advise x862-compile
-          (if *use-bscompile-now*
-            (apply #'ev2-compile arglist)
-            (:do-it))
-          :when :around :name bscompile)
-
-
-);;;#+compile-for-vm
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -537,322 +404,4 @@
       `($fs-init-function ,(ev2-maybe-store '($fs-cons-function) store-index)
                           ($fs-init-bslambda ,(ev2-maker-form bslambda))
                           ,(ev2-maker-form (lfun-bits fn))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-#|
-#+compile-boostrap (progn
-
-;(require 'xfasload "ccl:xdump;xfasload.lisp")
-
-;(rebuild-ccl :reload nil)
-;; load up all the functions we're going to patch
-;(xload-level-0)
-
-
-;; rebuild-ccl -> compile-ccl, then xload-level-0 .
-;; then if :RELOAD (default T), runs the kernel with
-;;    --image-name (standard-boot-image-name) input "(save-application <standard-image-name>)"
-;;  XLOAD-LEVEL-0:
-;;   in compile-ccl.lisp, xload-level-0 is defined as (require-modules (target-xload-modules)) and then
-;;     call the xload-level-0 that got defined in xfasload.lisp
-;;   That will (target-Xcompile-level-0 target (eq recompile :force)) and then build the actual image!
-;;; (xload-level-0)
-
-(defvar *ok-to-bscompile* nil)
-
-#|
-(defun xload-level-0 (&optional (recompile t))
-  (target-xload-level-0 (backend-name *host-backend*) recompile))
-
-(target-xload-level-0 (target &optional (recompile t))
-  (when recompile
-       (target-Xcompile-level-0 target (eq recompile :force)))
-
-|#
-(defparameter *bscompile-system* '("level-1;bs-level-1"
-                                   "level-1;l1-cl-package"
-                                   "level-1;l1-utils"
-                                   "level-1;l1-init"
-                                   "level-1;l1-symhash"
-                                   "level-1;l1-numbers"
-                                   "level-1;l1-aprims"
-                                   #+ppc-target "level-1;ppc-callback-support"
-                                   #+x86-target "level-1;x86-callback-support"
-                                   #+arm-target "level-1;arm-callback-support"
-                                   ;; There is some problem with %pascal-functions% being evaluated, it keeps calling back.
-                                   #+not-yet "level-1;l1-callbacks"
-                                   #+not-yet "level-1;l1-sort"
-                                   #+not-yet "lib;lists"
-                                   #+not-yet "lib;sequences"
-                                   #+not-yet "level-1;l1-dcode"
-                                   #+not-yet "level-1;l1-clos-boot"
-                                   #+not-yet "lib;hash"
-                                   #+not-yet "level-1;l1-clos"
-                                   #+not-yet "lib;defstruct"
-                                   #+not-yet "lib;dll-node"
-                                   #+not-yet "level-1;l1-unicode"
-                                   #+not-yet "level-1;l1-streams"
-                                   #+not-yet "level-1;linux-files"
-                                   #+not-yet "lib;chars"
-                                   #+not-yet "level-1;l1-files"
-                                   #+not-yet "level-1;l1-typesys"
-                                   
-                                   #+not-yet "level-1;sysutils"
-                                   ;#+not-yet #+ppc-target "level-1;ppc-threads-utils"
-                                   ;#+not-yet #+x86-target "level-1;x86-threads-utils"
-                                   ;#+not-yet #+arm-target "level-1;arm-threads-utils"
-                                   #+not-yet "level-1;l1-lisp-threads"
-                                   #+not-yet "level-1;l1-application"
-                                   #+not-yet "level-1;l1-processes"
-                                   #+not-yet "level-1;l1-io"
-                                   #+not-yet "level-1;l1-reader"
-                                   #+not-yet "level-1;l1-readloop"
-                                   #+not-yet "level-1;l1-readloop-lds"
-                                   #+not-yet "level-1;l1-error-system"
-                                   
-                                   #+not-yet "level-1;l1-events"
-                                   ;#+not-yet #+ppc-target "level-1;ppc-trap-support"
-                                   ;#+not-yet #+x86-target "level-1;x86-trap-support"
-                                   ;#+not-yet #+arm-target "level-1;arm-trap-support"
-                                   #+not-yet "level-1;l1-format"
-                                   #+not-yet "level-1;l1-sysio"
-                                   #+not-yet "level-1;l1-pathnames"
-                                   #+not-yet "level-1;l1-boot-lds"
-                                   
-                                   #+not-yet "level-1;l1-boot-1"
-                                   #+not-yet "level-1;l1-boot-2"
-                                   #+not-yet "level-1;l1-boot-3"
-                                   ))
-
-
-(let* ((dir-path (truename "ccl:"))
-       (dir-host (pathname-host dir-path))
-       (dir-device (pathname-device dir-path))
-       (dir-dirlist (pathname-directory dir-path))
-       (dir-depth (length dir-dirlist)))
-
-  (defun bscompile-this-file? (file)
-    (when *ok-to-bscompile*
-      (let ((file-path (truename file)))
-        (and (equal (pathname-host file-path) dir-host)
-             (equal (pathname-device file-path) dir-device)
-             (let ((file-dirlist (pathname-directory file-path)))
-               (and (>= (length file-dirlist) dir-depth)
-                    (loop for dir-part in dir-dirlist for file-part = (pop file-dirlist)
-                      always (equalp dir-part file-part))
-                    (PROGN
-                      (when (search "level-1" (pathname-name file) :test 'equalp)
-                        (format t "~&bscompile ~s: ~s ~s => ~s"
-                                file file-dirlist
-                                (loop for target in *bscompile-system*
-                                  collect (and (equalp file-dirlist (cdr (pathname-directory target)))
-                                               (equalp (pathname-name file-path) (pathname-name target))))
-                                (or (equal (car file-dirlist) "level-0")
-                                    (loop for target in *bscompile-system*
-                                      thereis (and (equalp file-dirlist (cdr (pathname-directory target)))
-                                                   (equalp (pathname-name file-path) (pathname-name target)))))))
-                    (or (equal (car file-dirlist) "level-0")
-                        (loop for target in *bscompile-system*
-                          thereis (and (equalp file-dirlist (cdr (pathname-directory target)))
-                                       (equalp (pathname-name file-path) (pathname-name target)))))))))))))
-
-;#+PATCH
-(progn
-  (defun bscompile-fasl () #P".bs-dx64fsl")
-
-
-;; Once this is all settled, maybe could bind *.fasl-pathname*, but can't now because some files
-;; use bscompile and some don't.
-
-  ;(require'x8664env "ccl:lib;x8664env.lisp")
-  (unless (fboundp 'setup-xload-target-parameters)
-    (xload-level-0))
-
-  (defun test-it (&key (verbose t))
-    (load "ev:bscompile.lisp")
-    (let* ((*features* (cons :cross-compiling *features*))
-           (*standard-output* (if verbose *standard-output* (make-broadcast-stream)))
-           (*ok-to-bscompile* t)
-           ;; TODO: still need this??
-           (*%fasload-verbose* nil)
-           (*ccl-system* (let ((old *ccl-system*))
-                           (assert (eq (caar old) 'level-1))
-                           (cons '(LEVEL-1 "ccl:ccl;bs-level-1" ("ccl:l1;bs-level-1.lisp")) (cdr old)))))
-      (flet ((bfasls (path)
-               (directory (make-pathname :name :wild
-                                         :type (pathname-type (bscompile-fasl))
-                                         :defaults path))))
-        (map nil 'delete-file (bfasls "ccl:level-0;**;"))
-        (map nil 'delete-file (bfasls "ccl:l1-fasls;"))
-        (map nil 'delete-file (bfasls "ccl:")))
-      ;; rebuild-ccl, except we want to force compile level-0 but not anything else
-      (let* ((*build-time-optional-features* nil)
-             (*save-source-locations* nil)
-             (cd (current-directory))
-             (*cerror-on-constant-redefinition* nil)
-             (*warn-if-redefine-kernel* nil))
-        (unwind-protect
-            (with-global-optimization-settings ()
-              (setf (current-directory) "ccl:")
-              (compile-file "ev:bseval.lisp" :output-file "ev:bseval.dx64fsl")
-              (compile-ccl nil)
-              (xload-level-0 :force))
-          (setf (current-directory) cd)))))
-
-
-
-(unadvise compile-named-function :name bscompile)
-(unadvise x862-compile :name bscompile)
-(unadvise find-module :name bscompile)
-(unadvise compile-file :name bscompile)
-(unadvise setup-xload-target-parameters :name bscompile)
-(unadvise find-backend :name bscompile)
-(unadvise xfasload :name bscompile)
-
-  (defvar *use-bscompile-now* nil)
-
-  ;; want definitions in level-0 compiled with fcomp-named-function to use bscompile.
-  (unadvise compile-named-function :name bscompile)
-  (advise compile-named-function
-          (let ((*use-bscompile-now* (and *compiling-file*
-                                          ;; Only time we have a load-time-eval-token is when called form
-                                          ;; fcomp-named-function or from nx1-load-time-value, exactly the
-                                          ;; two cases we want to intercept.
-                                          (not (eq (getf (cdr arglist) :load-time-eval-token 'no) 'no))
-                                          ;; only fcomp-named-function calls us with both :policy & :target
-                                          #+old (and (not (eq (getf (cdr arglist) :policy 'no) 'no))
-                                                     (not (eq (getf (cdr arglist) :target 'no) 'no)))
-                                          (bscompile-this-file? *compiling-file*))))
-
-            (:do-it))
-          :when :around :name bscompile)
-
-  (unadvise x862-compile :name bscompile)
-  (advise x862-compile
-          (if *use-bscompile-now*
-            (apply #'ev2-compile arglist)
-            (:do-it))
-          :when :around :name bscompile)
-
-
-  
-  (defun bscompile-boot-image (&optional (xl-backend *xload-default-backend*))
-    (let* ((boot-image (backend-xload-info-default-image-name xl-backend))
-           (n (1+ (position-if (lambda (c) (find c ":;")) boot-image :from-end t))))
-      (format t "~&current boot-image: ~s" boot-image)
-      (concatenate 'string (subseq boot-image 0 n) "bs-" (subseq boot-image n))))
-
-  (unadvise find-module :name bscompile)
-  (advise find-module
-          (destructuring-bind (fasl sources) values
-            (when fasl
-              (when (some #'bscompile-this-file? sources)
-                (assert (every #'bscompile-this-file? sources))
-                (setq values (list (merge-pathnames (bscompile-fasl) fasl) sources)))))
-          :when :after :name bscompile)
-
-  ;; TODO: this could be a :before
-  ;; This is still needed because level-0 doesn't go through find-module
-  (unadvise compile-file :name bscompile)
-  (advise compile-file
-          (if (bscompile-this-file? (car arglist))
-            ;; instead of using (backend-target-fasl-pathname backend)
-            (let ((output-file (or (getf (cdr arglist) :output-file)
-                                   (make-pathname :type nil :defaults (car arglist)))))
-              ;; find-module should have intervened for non-level-0 files.
-              (ASSERT (or (equal (pathname-type output-file) (pathname-type (bscompile-fasl)))
-                          (find "level-0" (pathname-directory output-file) :test 'equalp)))
-              (setq arglist (list* (car arglist)
-                                   :output-file
-                                   (merge-pathnames (bscompile-fasl) output-file)
-                                   (cdr arglist)))
-              (:do-it))
-            (:do-it))
-          :when :around :name bscompile)
-
-  ;; Now need to use to new fasls while loading, that's harder because it's just inlined in target-xload-level-0
-  ;; Major kludge
-  (defvar *bscompile-target-backend* nil)
-  (defvar *start-patching-find-backend* nil)
-  (unadvise setup-xload-target-parameters :name bscompile)
-  (advise setup-xload-target-parameters
-          (when *ok-to-bscompile* ;; always at least level 0, so patch this.
-            (let ((bs-xl (copy-backend-xload-info *xload-target-backend*)))
-              (setf (backend-xload-info-DEFAULT-IMAGE-NAME bs-xl)
-                    (bscompile-boot-image bs-xl))
-              (setf (backend-xload-info-DEFAULT-STARTUP-FILE-NAME bs-xl)
-                    (let ((name (backend-xload-info-default-startup-file-name bs-xl)))
-                      (assert (equal (pathname-name name) "level-1"))
-                      (concatenate 'string "bs-" (pathname-name name) "." (pathname-type (bscompile-fasl)))))
-              (setq *xload-target-backend* bs-xl)
-              ;; Already fetched
-              (setq *xload-startup-file* (backend-xload-info-default-startup-file-name bs-xl))
-              ;; Patching fasl file name more complicated...
-              (setq *start-patching-find-backend* t)))
-          :when :after :name bscompile)
-  (unadvise find-backend :name bscompile)
-  (advise find-backend
-          (if (shiftf *start-patching-find-backend* nil)
-            (progn
-              (setq *start-patching-find-backend* nil)
-              (assert (eq (car arglist) (backend-xload-info-compiler-target-name *xload-target-backend*)))
-              (let ((backend (copy-backend (:do-it))))
-                (setf (backend-target-fasl-pathname backend) (bscompile-fasl))
-                backend))
-            (:do-it))
-          :when :around :name bscompile)
-
-
-  ;; Have to include compiled evaluator if bscompiled.
-  (unadvise xfasload :name bscompile)
-  (advise xfasload
-          (when *ok-to-bscompile*
-            (format t "~&Adjoining xfasload list")
-            (when (find "bseval" arglist :test #'equalp :key #'pathname-name)
-              (break "Bug, probably doubly-advised!"))
-            (setq arglist (list* (car arglist)
-                                 (truename "ev:bseval.dx64fsl")
-                                 (cdr arglist))))
-          :when :before :name bscompile)
-)) ;; #+compile-bootstrap
-|#
-
-#|
-#+CROSS (progn
-(defun test-it ()
-  (cross-xload-level-0 (backend-name *bseval-host-backend*) t))
-
-(defparameter *bseval-host-backend*
-  (let* ((backend (copy-backend *host-backend*))
-         (name (backend-name backend))
-         (bs-name (make-keyword (concatenate 'string (string name) "-BSEVAL")))
-         (bs-fasl (bscompile-fasl))
-         (bs-backend (copy-backend backend)))
-    (setf (backend-p2-compile bs-backend) 'ev2-compile)
-    (setf (backend-name bs-backend) bs-name)
-    (setf (backend-target-fasl-pathname bs-backend) bs-fasl)
-    (let* ((xl (find-xload-backend name))
-           (bs-xl (copy-backend-xload-info xl)))
-      (setf (backend-xload-info-name bs-xl) bs-name)
-      (setf (backend-xload-info-compiler-target-name bs-xl) bs-name)
-      (setf (backend-xload-info-default-image-name bs-xl)
-            (let* ((image (backend-xload-info-default-image-name bs-xl))
-                   (n (1+ (position-if (lambda (c) (find c ":;")) image :from-end t))))
-              (concatenate 'string (subseq image 0 n) "bs-" (subseq image n))))
-      ;; Really should just be the name, with type defaulting!
-      (setf (backend-xload-info-default-startup-file-name bs-xl)
-            (concatenate 'string "bs-level-1." (pathname-type bs-fasl)))
-      (add-xload-backend bs-xl))
-    (remove bs-name *known-backends* :key #'backend-name)
-    (push bs-backend *known-backends*)
-    bs-backend))
-) ;;#+CROSS
-|#
-
-
-
-;  (trace  :before (lambda (fn afunc &rest flags) (assert (eq fn 'x862-compile)) flags (setq *last-afunc afunc)) x862-compile)
-;; TODO:  pass the "vreg" arg in, it says whether it's being evaluated for a vlaue, and it's really useful
-;;(fcomp-file src (or compile-file-original-truename (namestring orig-src)) compile-file-original-buffer-offset lexenv)
 
