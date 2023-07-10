@@ -440,8 +440,7 @@
       (if *ev2-bsquote*
         (ev2-maybe-store
          `($fs-symbol ,(ev2-maker-form (symbol-name sym))
-                      ,(ev2-maker-form (symbol-package sym))
-                      ,(ev2-maker-form (not (zerop (symbol-binding-index sym)))))
+                      ,(ev2-maker-form (symbol-package sym)))
          store-index)
         (progn
           ;; Don't bother storing interned symbols, and all our symbols are interned
@@ -968,8 +967,6 @@
   #+NO (push afunc *AF)
   ;(when (afunc-vcells afunc) (break "What to do about vcells? ~s" (afunc-vcells afunc)))
   ;(when (afunc-fcells afunc) (break "What to do about fcells? ~s" (afunc-fcells afunc)))
-  ;; (*x862-vcells* (x862-ensure-binding-indices-for-vcells (afunc-vcells afunc)))
-  ;;l (*x862-fcells* (afunc-fcells afunc))
   (let ((acode (afunc-acode afunc))
         (inherited-vars (afunc-inherited-vars afunc)))
     (assert (eq (acode-operator-sym acode) 'lambda-list))
