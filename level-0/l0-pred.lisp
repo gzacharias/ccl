@@ -230,12 +230,14 @@
     (or (= fulltag target::fulltag-immheader-0)
         (= fulltag target::fulltag-immheader-1)
         (= fulltag target::fulltag-immheader-2)))
+  #+cvm
+  (cvm-ivectorp x)
   )
 
 (setf (type-predicate 'ivector) 'ivectorp)
 
 (defun miscobjp (x)
-  #+(or ppc32-target x8632-target x8664-target arm-target)
+  #+(or ppc32-target x8632-target x8664-target arm-target cvm-target)
   (= (the fixnum (lisptag x)) target::tag-misc)
   #+(or ppc64-target arm64-target)
   (= (the fixnum (fulltag x)) target::fulltag-misc)
@@ -1222,7 +1224,10 @@
   #+arm64-target
   (if thing
     (= (the fixnum (fulltag thing)) arm64::fulltag-symbol)
-    t))
+    t)
+  #+cvm-target ;; doesn't matter, gets open-coded per compiler macro
+  (cvm-symbolp thing)
+  )
       
 (defun packagep (thing)
   (= (the fixnum (typecode thing)) target::subtag-package))

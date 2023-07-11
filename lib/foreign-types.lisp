@@ -1413,9 +1413,7 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
   (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
     (return-from %foreign-type-or-record-size-form
       (%deferred-foreign-size-form type units)))
-  (if (and (keywordp type) (keywordp units))
-    (%foreign-type-or-record-size type units)
-    `(%foreign-type-or-record-size ,type ,units)))
+  (%foreign-type-or-record-size type units))
 
 (defun %foreign-type-or-record-size (type &optional (units :bits) accessors)
   (let* ((info (%foreign-type-or-record type)))
