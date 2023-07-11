@@ -227,12 +227,14 @@
     (or (= fulltag x8664::fulltag-immheader-0)
         (= fulltag x8664::fulltag-immheader-1)
         (= fulltag x8664::fulltag-immheader-2)))
+  #+cvm
+  (cvm-ivectorp x)
   )
 
 (setf (type-predicate 'ivector) 'ivectorp)
 
 (defun miscobjp (x)
-  #+(or ppc32-target x8632-target x8664-target arm-target)
+  #+(or ppc32-target x8632-target x8664-target arm-target cvm-target)
   (= (the fixnum (lisptag x)) target::tag-misc)
   #+ppc64-target
   (= (the fixnum (fulltag x)) ppc64::fulltag-misc)
@@ -1053,6 +1055,8 @@
   (if thing
     (= (the fixnum (lisptag thing)) x8664::tag-symbol)
     t)
+  #+cvm-target ;; doesn't matter, gets open-coded per compiler macro
+  (cvm-symbolp thing)
   )
       
 (defun packagep (thing)

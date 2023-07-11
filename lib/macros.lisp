@@ -3175,6 +3175,9 @@ to binary 0."
 				    inits record-name))))))))
 
 (defun %foreign-record-field-forms (ptr record-type record-name inits)
+  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+    (return-from %foreign-record-field-forms
+      (%deferred-foreign-init-forms ptr record-name inits)))
   (unless (evenp (length inits))
     (signal-program-error "Unexpected or malformed initialization forms: ~s in field type: ~s"
 			  inits record-name))
