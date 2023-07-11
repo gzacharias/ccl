@@ -17,6 +17,10 @@ tags
 /*.image
 /*boot*
 
+/bin
+/cvmsrcs
+/l1-fasls
+
 /armcl
 /?x86cl
 /?x86cl64
