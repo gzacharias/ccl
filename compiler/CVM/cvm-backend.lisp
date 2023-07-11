@@ -75,7 +75,16 @@
             ,(ecase units (:bits 1) (:bytes 8) (:words 32)))))
 
 
-
+(defun %deferred-foreign-init-forms (ptr record-name inits)
+  (assert (keywordp record-name))
+  (if (null (cdr inits))
+    `((setf ,(%deferred-foreign-access-form ptr record-name 0) ,(car inits)))
+    (loop with prefix = (string record-name)
+      for (key init) on inits by #'cddr
+      collect `(setf ,(%deferred-foreign-access-form ptr
+                                                     (make-keyword (%str-cat prefix "." (string key)))
+                                                     0)
+                     ,init))))
 
 ;;; Below was first attempt, might want to back out of some of this:
 
@@ -121,10 +130,13 @@
 ;(defpackage #.(ftd-interface-package-name (backend-target-foreign-type-data *target-backend*))
 ;  (:nicknames "OS")
 ;  (:use "COMMON-LISP"))
+; BUT compile-file does not bind *target-backend* at read time, only compile-named-function binds it.
 ;; which means it defines the package that it was compiled for when it's loaded.
 ;;  but if we're compiling for a different target, and we need the package to
 ;;  be set up for #$ ...
-(defpackage "CVMDARWIN-FFI" (:use "COMMON-LISP"))
+(eval-when (eval load) ;; doing this at compile time interferes with cross compilation package manipulation
+  (or (find-package "CVMDARWIN-FFI")
+      (make-package "CVMDARWIN-FFI" :use "COMMON-LISP")))
 
 (defparameter *cvm-ftd*
   (make-ftd :interface-db-directory 'unknown  ;;"ccl:darwin-cvm-headers;"

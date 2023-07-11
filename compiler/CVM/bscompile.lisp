@@ -741,12 +741,7 @@
 
 (defev2 %make-uvector (size subtag &optional (init nil init-p)) ;; x862-%alloc-misc
   (if init-p
-    (let* ((subtag-val (acode-fixnum-form-p subtag)))
-      (assert subtag-val)
-      (if (member (nx-target-uvector-subtag-name subtag-val) (arch::target-gvector-types (backend-target-arch *target-backend*)))
-        ;; Need to split this off for level-0
-        `($BS-make-gvector-init ,subtag-val ,(ev2-form size) ,(ev2-form init))
-        `($BS-make-ivector-init ,subtag-val ,(ev2-form size) ,(ev2-form init))))
+    `($BS-make-uvector-init ,(ev2-form size) ,(ev2-form subtag) ,(ev2-form init))
     `($BS-make-uvector ,(ev2-form size) ,(ev2-form subtag))))
 
 ;; JUST use UVREF/UVSET for this?
@@ -832,7 +827,7 @@
 (defev2-fn %ilsl (shift x) $BS-ILSL)
 (defev2-fn (%ilogior2 logior2) (x y) $BS-LOGIOR2)
 (defev2-fn (%ilogxor2 logxor2) (x y) $BS-LOGXOR2)
-(defev2-fn logand2 (x y) $BS-LOGAND2)
+(defev2-fn (logand2 %natural-logand) (x y) $BS-LOGAND2) ;; todo
 (defev2-fn %ilogand2 (x y) $BS-%ILOGAND2)
 
 (defev2-fn (%ilognot lognot) (x) $BS-LOGNOT)
@@ -994,11 +989,17 @@
 (defev2 %get-single-float (macptr offset)
   `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) ,$ff-single-float))
 
+(defev2-fn %get-bit (macptr bit-offset) $BS-macptr-get-bit)
+(defev2-fn %set-bit (macptr bit-offset val) $BS-macptr-set-bit)
 
 (defev2-fn %new-ptr (size clear-p) $BS-NEW-MACPTR) ;x862-%new-ptr
   
 (defev2 %immediate-int-to-ptr (arg)
   (error "%immediate-in-to-ptr Not supported: ~s" arg))
+
+(defev2-fn %fixnum-ref-double-float (base index) $bs-fixnum-ref-double-float)
+(defev2-fn %fixnum-set-double-float (base index val) $bs-fixnum-set-double-float)
+
 
 (defev2 %ptr-eql (cc form1 form2)
   (ev2-boolean-form cc '$BS-MACPTR-EQL (ev2-form form1) (ev2-form form2)))
