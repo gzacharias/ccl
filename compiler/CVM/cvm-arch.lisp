@@ -152,6 +152,9 @@
 (defconstant subtag-single-float fulltag-single-float)
 
 (defconstant tag-fixnum lisptag-fixnum)
+(defconstant tag-list lisptag-list)
+
+(defconstant subtag-weak subtag-population)
 
 ;;; find whoever is using these, make sure it's not doing arithmetic on objects
 (defconstant misc-data-offset (- 8 fulltag-misc))
