@@ -448,7 +448,16 @@
                                         #'%%0-arg-dcode
                                         0
                                         (%ilogior (%ilsl $lfbits-gfn-bit 1)
-                                                  (%ilogand $lfbits-args-mask 0)))))
+                                                  (%ilogand $lfbits-args-mask 0)))
+                   #+cvm-target
+                   (cvm-make-gf *gf-proto*
+                                wrapper
+                                slots
+                                dt
+                                #'%%0-arg-dcode
+                                0
+                                (%ilogior (%ilsl $lfbits-gfn-bit 1)
+                                          (%ilogand $lfbits-args-mask 0)))))
 	    (setf ;(gf.hash fn) (strip-tag-to-fixnum fn)
 		  (slot-vector.instance slots) fn
 		  (%gf-dispatch-table-gf dt) fn)
@@ -496,7 +505,14 @@
                        dcode
                        gf
                        (%ilogior (%ilsl $lfbits-cm-bit 1)
-                                 (%ilogand $lfbits-args-mask (lfun-bits gf)))))
+                                 (%ilogand $lfbits-args-mask (lfun-bits gf))))
+  #+cvm-target
+  (cvm-make-combined-method
+   thing
+   dcode
+   gf
+   (%ilogior (%ilsl $lfbits-cm-bit 1)
+             (%ilogand $lfbits-args-mask (lfun-bits gf)))))
 
 (defun %gf-dispatch-table (gf)
   ;(require-type gf 'standard-generic-function)
