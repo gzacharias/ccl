@@ -1378,8 +1378,9 @@ Which one name refers to depends on foreign-type-spec in the obvious manner."
              (typep type 'foreign-record-type))
     (return-from %foreign-access-form
       (%deferred-foreign-access-form base-form
-                                     `(,(foreign-record-type-name type) ,@accessors)
-                                     bit-offset)))
+                                     (foreign-record-type-name type)
+                                     bit-offset
+                                     accessors)))
   (if (null accessors)
     (invoke-foreign-type-method :extract-gen type base-form bit-offset)
     (etypecase type

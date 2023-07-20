@@ -4295,6 +4295,7 @@
                      (union-ctype-types ctype))))))
 
 
+#-cvm-target
 (defvar *simple-predicate-function-prototype*
   #'(lambda (thing)
       (%%typep thing #.(specifier-type t))))
@@ -4322,7 +4323,12 @@
    datum
    function
    nil
-   (dpb 1 $lfbits-numreq 0)))
+   (dpb 1 $lfbits-numreq 0))
+  #+cvm-target
+  (cvm-make-type-fn datum
+                    function
+                    nil
+                    (dpb 1 $lfbits-numreq 0)))
 
 (defun check-ctypep (thing ctype)
   (multiple-value-bind (win sure) (ctypep thing ctype)

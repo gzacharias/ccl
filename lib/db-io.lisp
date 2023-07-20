@@ -1911,7 +1911,7 @@ satisfy the optional predicate PREDICATE."
   ;; Try to destructively modify any info we already have.  Use the
   ;; "escaped" name (keyword) for the lookup here.
   (when (getf (ftd-attributes ftd) :defer-to-runtime)
-    (return-from load-record (%defer-load-record name)))
+    (return-from load-record (%deferred-load-record name)))
   (let* ((already (or (info-foreign-type-struct name ftd)
                       (info-foreign-type-union name ftd)))
          (name (unescape-foreign-name name)))

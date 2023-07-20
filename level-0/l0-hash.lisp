@@ -152,7 +152,7 @@
     (when (logbitp $nhash_track_keys_bit flags)
       (setf (nhash.vector.flags vector) (logior (ash 1 $nhash_key_moved_bit) flags)))))
 
-#-cross-compiling
+#-(and cross-compiling (not cvm-target))
 ;;;
 ;;; This is a fairly straightforward translation of the "one-at-a-time"
 ;;; hash function described at:
@@ -173,7 +173,7 @@
           hash (+ hash (the fixnum (ash hash 10)))
           hash (logxor hash (the fixnum (ash hash -6))))))
 
-#+cross-compiling
+#+(and cross-compiling (not cvm-target))
 (defun mixup-hash-code (code)
   (logand code target::target-most-positive-fixnum))
 
