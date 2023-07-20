@@ -1755,9 +1755,12 @@ to replace that class with ~s" name old-class new-class)
   (cond ((null x) #'false)
         ((eq x t) #'true)        
         (t
+         #-cvm-target
          (let* ((f (%copy-function #'constant-ref)))
            (set-nth-immediate f 1 x)
-           f))))
+           f)
+         #+cvm-target
+         (lambda () x))))
 
 
   
@@ -2120,27 +2123,35 @@ to replace that class with ~s" name old-class new-class)
 
   #+cvm-target
   (defparameter *ivector-vectorh-classes*
-    (let ((arr (make-array 256)))
-      (loop for subtag from 0 below 255
-        do (setf (%svref arr subtag)
-                 (case (car (rassoc subtag cvm::*cvm-uvector-subtags*))
-                   (:complex-double-float-vector (find-class 'complex-double-float-vector))
-                   (:complex-single-float-vector (find-class 'complex-single-float-vector))
-                   (:simple-string (find-class 'base-string))
-                   (:fixnum-vector (find-class 'fixnum-vector))
-                   (:double-float-vector (find-class 'double-float-vector))
-                   (:single-float-vector (find-class 'short-float-vector))
-                   (:signed-64-bit-vector (find-class 'doubleword-vector))
-                   (:unsigned-64-bit-vector (find-class 'unsigned-doubleword-vector))
-                   (:signed-32-bit-vector (find-class 'long-vector))
-                   (:unsigned-32-bit-vector (find-class 'unsigned-long-vector))
-                   (:signed-16-bit-vector (find-class 'word-vector))
-                   (:unsigned-16-bit-vector (find-class 'unsigned-word-vector))
-                   (:signed-8-bit-vector (Find-class 'byte-vector))
-                   (:unsigned-8-bit-vector (find-class 'unsigned-byte-vector))
-                   (:bit-vector (find-class 'bit-vector))
-                   (:simple-vector *general-vector-class*)
-                   (t *t-class*))))))
+    (loop with arr = (make-array 256)
+      for subtag from 0 below 255
+      do (setf (%svref arr subtag)
+               (macrolet ((xcase (subtag &rest clauses)
+                            `(cond
+                              ,@(mapcar (lambda (clause)
+                                          (destructuring-bind (tag &optional (class tag)) clause
+                                            (setq tag (intern (%str-cat "SUBTAG-" (string tag)) :cvm))
+                                            `((eq ,subtag ,tag) (find-class ',class))))
+                                        clauses)
+                              (t *t-class*))))
+                 (xcase subtag
+                   (complex-double-float-vector)
+                   (complex-single-float-vector)
+                   (simple-string base-string)
+                   (fixnum-vector)
+                   (double-float-vector)
+                   (single-float-vector short-float-vector)
+                   (signed-64-bit-vector doubleword-vector)
+                   (unsigned-64-bit-vector unsigned-doubleword-vector)
+                   (signed-32-bit-vector long-vector)
+                   (unsigned-32-bit-vector unsigned-long-vector)
+                   (signed-16-bit-vector word-vector)
+                   (unsigned-16-bit-vector unsigned-word-vector)
+                   (signed-8-bit-vector byte-vector)
+                   (unsigned-8-bit-vector unsigned-byte-vector)
+                   (bit-vector bit-vector)
+                   (simple-vector general-vector))))
+      finally (return arr)))
 
 
 
@@ -2382,17 +2393,15 @@ to replace that class with ~s" name old-class new-class)
         (do* ((slice 0 (+ 16 slice)))
              ((= slice 256))
           (declare (type (unsigned-byte 8) slice))
-          ;; This is only needed for stuff that can have non-zero values in the byte with the tag.
-          ;; Doesn't hurt anything to set it in the full slice anyhow even if never comes up.
           (setf (%svref v (+ slice cvm::fulltag-even-fixnum)) *fixnum-class*
-                (%svref v (+ slice cvm::fulltag-single-float)) *single-float-class*
-                (%svref v (+ slice cvm::fulltag-cons)) *cons-class*
-                (%svref v (+ slice cvm::fulltag-immediate)) *immediate-class*
                 (%svref v (+ slice cvm::fulltag-odd-fixnum))  *fixnum-class*
                 (%svref v (+ slice cvm::fulltag-nil))  *null-class*
-                (%svref v (+ slice cvm::fulltag-function)) *function-class*))
-
-          
+                (%svref v (+ slice cvm::fulltag-cons)) *cons-class*
+                (%svref v (+ slice cvm::fulltag-character)) class-of-character-function
+                (%svref v (+ slice cvm::fulltag-single-float)) *single-float-class*
+                (%svref v (+ slice cvm::fulltag-symbol)) class-of-symbol-function
+                (%svref v (+ slice cvm::fulltag-function)) class-of-function-function
+                (%svref v (+ slice cvm::fulltag-immediate)) *immediate-class*))
 
 
         (macrolet ((map-subtag (subtag class-name)
@@ -2400,7 +2409,6 @@ to replace that class with ~s" name old-class new-class)
           ;; immheader types map to built-in classes.
           (map-subtag target::subtag-bignum bignum)
           (map-subtag target::subtag-double-float double-float)
-          #-cvm
           (map-subtag target::subtag-single-float short-float)
           (map-subtag target::subtag-dead-macptr ivector)
           #+ppc32-target
@@ -2442,7 +2450,7 @@ to replace that class with ~s" name old-class new-class)
           (map-subtag target::subtag-hash-vector hash-table-vector)
           (map-subtag target::subtag-value-cell value-cell)
           (map-subtag target::subtag-pool pool)
-          (map-subtag #-cvm target::subtag-weak #+cvm target::subtag-population population)
+          (map-subtag target::subtag-weak population)
           (map-subtag target::subtag-package package)
           (map-subtag target::subtag-simple-vector simple-vector)
           (map-subtag target::subtag-slot-vector slot-vector)
@@ -2475,20 +2483,21 @@ to replace that class with ~s" name old-class new-class)
                       #+arm-target target::subtag-symbol
 		      #+x8632-target target::subtag-symbol
 		      #+x8664-target target::tag-symbol
-                      #+cvm-target cvm::fulltag-symbol)
+                      #+cvm-target cvm::subtag-symbol)
               class-of-symbol-function)
-
         (setf (%svref v
                       #+ppc-target target::subtag-function
                       #+arm-target target::subtag-function
                       #+x8632-target target::subtag-function
                       #+x8664-target target::tag-function
-                      #+cvm-target cvm::fulltag-function)
+                      #+cvm-target target::subtag-function)
               class-of-function-function)
         (setf (%svref v target::subtag-vectorH)
               #'(lambda (v)
                   (let* ((subtype (%array-header-subtype v)))
                     (declare (fixnum subtype))
+                    #+cvm
+                    (%svref *ivector-vectorh-classes* subtype)
                     #-cvm
                     (if (eql subtype target::subtag-simple-vector)
                       *general-vector-class*
@@ -2516,9 +2525,7 @@ to replace that class with ~s" name old-class new-class)
                                (%svref *immheader-2-classes* idx))
                               (t *t-class*)))
                                
-                      )
-                    #+cvm
-                    (%svref *ivector-vectorh-classes* subtype))))
+                      ))))
         (setf (%svref v target::subtag-lock)
               #'(lambda (thing)
                   (case (%svref thing target::lock.kind-cell)
@@ -2681,10 +2688,10 @@ to replace that class with ~s" name old-class new-class)
            nil				;method-function name
            (dpb 1 $lfbits-numreq (ash 1 $lfbits-method-bit))))
   #+cvm-target
-  (cvm-create-reader-method-function
+  (cvm-make-reader-method
    (ensure-slot-id (%slot-definition-name dslotd))
    'slot-id-value
-   nil
+   nil				;method-function name
    (dpb 1 $lfbits-numreq (ash 1 $lfbits-method-bit)))
   )
 
@@ -2715,7 +2722,7 @@ to replace that class with ~s" name old-class new-class)
              nil
              (dpb 2 $lfbits-numreq (ash 1 $lfbits-method-bit))))
   #+cvm-target
-  (cvm-create-writer-method-function
+  (cvm-make-writer-method
    (ensure-slot-id (%slot-definition-name dslotd))
    'set-slot-id-value
    nil

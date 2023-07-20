@@ -397,8 +397,11 @@
                                    table
                                    (dpb 1 $lfbits-numreq
 				     (ash -1 $lfbits-noname-bit)))
-              #+cvm
-              (cvm-make-slot-lookup-fn small map table))
+              #+cvm-target
+              (cvm-make-slot-lookup-fn map
+                                       table
+                                       (dpb 1 $lfbits-numreq
+                                            (ash -1 $lfbits-noname-bit))))
 	     (class (%wrapper-class wrapper))
 	     (get-f
               #+ppc-target
@@ -438,8 +441,14 @@
                                    #'%slot-id-ref-missing
                                    (dpb 2 $lfbits-numreq
                                         (ash -1 $lfbits-noname-bit)))
-              #+cvm
-              (cvm-make-slot-value-function small map table class))
+              #+cvm-target
+              (cvm-make-slot-getter map
+                                    table
+                                    class
+                                    #'%maybe-std-slot-value-using-class
+                                    #'%slot-id-ref-missing
+                                    (dpb 2 $lfbits-numreq
+                                         (ash -1 $lfbits-noname-bit))))
 	     (set-f
               #+ppc-target
               (gvector :function
@@ -479,8 +488,15 @@
                #'%slot-id-set-missing
                (dpb 3 $lfbits-numreq
                     (ash -1 $lfbits-noname-bit)))
-              #+cvm
-              (cvm-make-slot-setter-function small map table class)))
+              #+cvm-target
+              (cvm-make-slot-setter
+               map
+               table
+               class
+               #'%maybe-std-setf-slot-value-using-class
+               #'%slot-id-set-missing
+               (dpb 3 $lfbits-numreq
+                    (ash -1 $lfbits-noname-bit)))))
 	(setf (%wrapper-slot-id->slotd wrapper) lookup-f
 	      (%wrapper-slot-id-value wrapper) get-f
 	      (%wrapper-set-slot-id-value wrapper) set-f
@@ -1727,7 +1743,14 @@ governs whether DEFCLASS makes that distinction or not.")
                     (logior (ash 1 $lfbits-gfn-bit)
                             (ash 1 $lfbits-aok-bit))))
            #+cvm-target
-           (cvm-allocate-gf-instance wrapper slots dt)))
+           (cvm-make-gf #'unset-fin-trampoline
+                        wrapper
+                        slots
+                        dt
+                        #'false
+                        0
+                        (logior (ash 1 $lfbits-gfn-bit)
+                                (ash 1 $lfbits-aok-bit)))))
     (setf (slot-vector.instance slots) fn)
     (when dt
       (setf (%gf-dispatch-table-gf dt) fn))
