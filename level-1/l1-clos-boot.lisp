@@ -2280,7 +2280,26 @@ to replace that class with ~s" name old-class new-class)
                           (%wrapper-class (gf.instance.class-wrapper thing))
                           (if (logbitp $lfbits-cm-bit bits)
                             *combined-method-class*
-                            *compiled-function-class*))))))))
+                            *compiled-function-class*)))))))
+             (class-of-character-function
+              #'(lambda (c) (let* ((code (%char-code c)))
+                              (if (or (eq c #\NewLine)
+                                      (and (>= code (char-code #\space))
+                                           (< code (char-code #\rubout))))
+                                *standard-char-class*
+                                *base-char-class*))))
+             (class-of-symbol-function
+              #-ppc64-target
+              #'(lambda (s) (if (eq (symbol-package s) *keyword-package*)
+                              *keyword-class*
+                              *symbol-class*))
+              #+ppc64-target
+              #'(lambda (s)
+                  (if s
+                    (if (eq (symbol-package s) *keyword-package*)
+                      *keyword-class*
+                      *symbol-class*)
+                    *null-class*))))
         ;; Make one loop through the vector, initializing fixnum & list
         ;; cells.  Set all immediates to *immediate-class*, then
         ;; special-case characters later.
@@ -2396,13 +2415,7 @@ to replace that class with ~s" name old-class new-class)
                     *array-class*)))
         ;; These need to be special-cased:
         (setf (%svref v target::subtag-macptr) #'foreign-class-of)
-        (setf (%svref v target::subtag-character)
-              #'(lambda (c) (let* ((code (%char-code c)))
-                              (if (or (eq c #\NewLine)
-                                      (and (>= code (char-code #\space))
-                                           (< code (char-code #\rubout))))
-                                *standard-char-class*
-                                *base-char-class*))))
+        (setf (%svref v target::subtag-character) class-of-character-function)
         (setf (%svref v target::subtag-struct)
               #'(lambda (s) (%structure-class-of s))) ; need DEFSTRUCT
         (setf (%svref v target::subtag-istruct)
@@ -2421,17 +2434,7 @@ to replace that class with ~s" name old-class new-class)
                       #+arm-target target::subtag-symbol
 		      #+x8632-target target::subtag-symbol
 		      #+x8664-target target::tag-symbol)
-              #-ppc64-target
-              #'(lambda (s) (if (eq (symbol-package s) *keyword-package*)
-                              *keyword-class*
-                              *symbol-class*))
-              #+ppc64-target
-              #'(lambda (s)
-                  (if s
-                    (if (eq (symbol-package s) *keyword-package*)
-                      *keyword-class*
-                      *symbol-class*)
-                    *null-class*)))
+              class-of-symbol-function)
         
         (setf (%svref v
                       #+ppc-target target::subtag-function
