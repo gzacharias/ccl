@@ -84,15 +84,9 @@
             ; Can't lose now: symbols are all directly present in package.
             ; Ensure that they're all external; do so with interrupts disabled
             (without-interrupts
-             (let* ((etab (pkg.etab package))
-                    (ivec (car (pkg.itab package))))
-               (dolist (s sym-or-syms t)
-                 (multiple-value-bind (foundsym foundp internal-offset)
-                                      (%findsym (symbol-name s) package)
-                   (when (eq foundp :internal)
-                     (setf (%svref ivec internal-offset) (package-deleted-marker))
-                     (let* ((pname (symbol-name foundsym)))
-                       (%htab-add-symbol foundsym etab (nth-value 2 (%get-htab-symbol pname (length pname) etab)))))))))))))))
+              (dolist (s sym-or-syms t)
+                (%export-symbol s package))))))
+      t)))
 
 (defun check-export-conflicts (symbols package)
   (let* ((conflicts nil))
