@@ -941,6 +941,8 @@
 
 
 (defun in-any-consing-area-p (x)
+  #+cvm-target x
+  #-cvm-target
   (do-consing-areas (area)
     (when (%in-consing-area-p x area)
       (return t))))
@@ -1148,6 +1150,7 @@ no longer being used."
 ;;; "preparation" and "initialization" happen when the foreign
 ;;; thread first tries to call lisp code.  "termination" happens
 ;;; via the pthread thread-local-storage cleanup mechanism.
+#-cvm-target
 (defcallback %foreign-thread-control (:without-interrupts t :int param :int)
   (declare (fixnum param))
   (cond ((< param 0) (%foreign-thread-prepare))
