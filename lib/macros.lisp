@@ -3206,17 +3206,14 @@ to binary 0."
          (ordinal-form (if (< ordinal max-canonical-foreign-type-ordinal)
                          ordinal
                          `(foreign-type-ordinal (load-time-value (%foreign-type-or-record ',record-name)))))
-         (bits (ensure-foreign-type-bits ftype))
-	 (bytes (if bits
-		  (ceiling bits 8)
-		  (signal-program-error "Unknown size for foreign type ~S."
-					(unparse-foreign-type ftype))))
+         (b (gensym))
 	 (p (gensym))
 	 (memset (read-from-string "#_memset")))    
-    `(let* ((,p (,allocator ,bytes)))
+    `(let* ((,b (record-length ,record-name))
+            (,p (,allocator ,b)))
       ,@(when (eq *host-backend* *target-backend*)
               `((%set-macptr-type ,p ,ordinal-form)))
-      (,memset ,p 0 ,bytes)
+      (,memset ,p 0 ,b)
       ,@(%foreign-record-field-forms p ftype record-name initforms)
       ,p)))
   
