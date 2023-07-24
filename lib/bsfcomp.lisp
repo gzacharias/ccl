@@ -1,13 +1,13 @@
 (in-package :ccl)
 
 (defparameter *modules-not-for-cvm*
-  '(l1-lisp-threads ; l1-processes l1-sockets)
+  '(;l1-lisp-threads l1-processes l1-sockets    ;sockets
+    l1-cl-package
     edit-callers
     cover
     leaks
     core-files
     dominance
-    sockets
     reg
     backtrace-lds))
 
@@ -194,10 +194,11 @@
       ;; Else just load stuff we redefined.  Until build a new lisp.
       (let ((*warn-if-redefine-kernel* nil))
         (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-        (load "ccl:lib;foreign-types.lisp")
         (load "ccl:lib;macros.lisp")
+        (load "ccl:lib;foreign-types.lisp")
+        (load "ccl:lib;db-io.lisp")
+        (load "ccl:library;sockets.lisp")
         ;(load "ccl:lib;nfcomp.lisp")
-        ;(load "ccl:lib;db-io.lisp")
         ;(load "ccl:lib;compile-ccl.lisp")
         )))
 
@@ -213,33 +214,38 @@
          (*save-doc-strings* t)
          (*fasl-save-doc-strings* t))
     (with-global-optimization-settings ()
-      (ensure-directories-exist "ccl:cvmsrcs;")
-      (let ((outpath (merge-pathnames "ccl:cvmsrcs;" *.cvm-output-pathname*)))
-        (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
-        (flet ((fcomp (srcs)
-                 (unless (consp srcs) (setq srcs (list srcs)))
-                 (let* ((src (car srcs))
-                        (output (merge-pathnames outpath src)))
-                   (when force (assert (not (probe-file output)))) ;; Check for duplicate filenames...
-                   (when (or force
-                             (not (probe-file output))
-                             (let ((outdate (file-write-date output)))
-                               (some (lambda (src) (> (file-write-date src) outdate)) srcs)))
-                     (setq *nx-speed* (max 1 *nx-speed*))
-                     (setq *nx-safety* (min 1 *nx-safety*))
-                     ;; This sets up the target:: and os:: package nicknames and *target-ftd*
-                     (with-cross-compilation-target (:darwincvm)
-                       ;; compile-file doesn't like to replace non-fasl file
-                       (when (probe-file output) (delete-file output))
-                       (compile-file src :target :darwincvm :features nil :output-file output :verbose t))))))
+      (flet ((fcomp (srcs outpath)
+               (unless (consp srcs) (setq srcs (list srcs)))
+               (let* ((src (car srcs))
+                      (output (merge-pathnames outpath src)))
+                 (when force (assert (not (probe-file output)))) ;; Check for duplicate filenames...
+                 (when (or force
+                           (not (probe-file output))
+                           (let ((outdate (file-write-date output)))
+                             (some (lambda (src) (> (file-write-date src) outdate)) srcs)))
+                   (setq *nx-speed* (max 1 *nx-speed*))
+                   (setq *nx-safety* (min 1 *nx-safety*))
+                   ;; This sets up the target:: and os:: package nicknames and *target-ftd*
+                   (with-cross-compilation-target (:darwincvm)
+                     ;; compile-file doesn't like to replace non-fasl file
+                     (when (probe-file output) (delete-file output))
+                     (compile-file src :target :darwincvm :features nil :output-file output :verbose t))))))
+        ;; TODO: Maybe should make a file, LEVEL-0.LISP that just sets *level-0-files*, which can then be loaded,
+        ;; so don't rely on contents of directories..
+        (ensure-directories-exist "ccl:cvmsrcs;level-0;")
+        (let ((outpath (merge-pathnames "ccl:cvmsrcs;level-0;" *.cvm-output-pathname*)))
+          (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
           (dolist (dir '("ccl:level-0;" "ccl:level-0;CVM;"))
             (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-              do (fcomp src)))
+              do (fcomp src outpath))))
+        (ensure-directories-exist "ccl:cvmsrcs;")
+        (let ((outpath (merge-pathnames "ccl:cvmsrcs;" *.cvm-output-pathname*)))
+          (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
           (loop for module in *modules-to-compile*
             if (member module *modules-not-for-cvm*)
             do (format t "~&IGNORING ~s" module)
             ;; Ignore the requested fasl dir, we're putting everything in one dir
-            else do (fcomp (caddr (assoc module *ccl-system*)))))))))
+            else do (fcomp (caddr (assoc module *ccl-system*)) outpath)))))))
 
         
 (defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
@@ -322,7 +328,7 @@
   (let ((bslambda (ev2-lfun-bslambda fn)))
     (destructuring-bind (name argspecs body nlocals) (cdr bslambda)
       (when (and (equal name '($bs-quote nil))
-                 (every #'null argspecs)
+                 (every #'null (butlast argspecs))
                  (zerop nlocals)
                  (eql (length body) 3)
                  (eq (car body) '$bs-funcall)
@@ -372,7 +378,8 @@
                                               (let ((*ev2-bsquote* t))
                                                 (ev2-maker-form arg)))
                                           args))
-                  :stream outf :pretty t :readably t :structure nil)
+                  :stream outf :pretty t :readably t :structure nil
+                  :right-margin 150)
         and do (terpri outf)))))
 
 
@@ -444,7 +451,7 @@
   (assert *ev2-bsquote*)
   (ev2-maybe-store `($fs-package ,(ev2-maker-form (package-name pkg))) store-index))
 
-;; Could output symbols directly...  Except, maybe need to do the binding index thing?
+;; Could output symbols directly...  
 ;; Should at least output CL symbols directly
 (defun ev2-symbol-maker (sym store-index)
   (let* ((inverse (fasl-setf-name-inverse-p sym)))
@@ -452,24 +459,28 @@
       (progn
         (assert (null store-index)) ;; sym never got scanned so shouldn't have a store-index
         (ev2-maker-form inverse))
-      (if *ev2-bsquote*
-        (ev2-maybe-store
-         `($fs-symbol ,(ev2-maker-form (symbol-name sym))
-                      ,(ev2-maker-form (symbol-package sym)))
-         store-index)
-        (progn
-          ;; Don't bother storing interned symbols, and all our symbols are interned
-          (assert (or (eq (symbol-package sym) (symbol-package '$bs-quote))
-                      (eq (symbol-package sym) *keyword-package*)))
-          (when store-index
-            (unless (or (eq sym 'bslambda)
-                        (string= "$BS-" (string sym) :end2 4)
-                        ;; Get rid of these
-                        (string= "$FF-" (string sym) :end2 4))
-              (format *trace-output* "~&NOT storing ~s" sym)
-              (break "How did this find its way here?"))
-            (remhash sym *ev2-fcomp-hash*))
-          (if (keywordp sym) sym `(quote ,sym)))))))
+      (cond (*ev2-bsquote*
+             (ev2-maybe-store
+              `($fs-symbol ,(ev2-maker-form (symbol-name sym))
+                           ,(ev2-maker-form (symbol-package sym)))
+              store-index))
+            ((null (symbol-package sym))  ;; gensyms are used as tags in tagbody
+             (unless store-index
+               (error "An unstored uninterned symbol??? ~s" sym))
+             (ev2-maybe-store `(make-symbol ,(symbol-name sym)) store-index))
+            (t
+             ;; Don't bother storing interned symbols
+             (assert (or (eq (symbol-package sym) (symbol-package '$bs-quote))
+                         (eq (symbol-package sym) *keyword-package*)))
+             (when store-index
+               (unless (or (eq sym 'bslambda)
+                           (string= "$BS-" (string sym) :end2 4)
+                           ;; Get rid of these
+                           (string= "$FF-" (string sym) :end2 4))
+                 (format *trace-output* "~&NOT storing ~s" sym)
+                 (break "How did this find its way here?"))
+               (remhash sym *ev2-fcomp-hash*))
+             (if (keywordp sym) sym `(quote ,sym)))))))
 
 
 (defun ev2-element-type-keyword (arr)
@@ -569,6 +580,5 @@
     ;;; Or have an XFUNCTION type that we use.
     (let ((*ev2-bsquote* nil))
       `($fs-init-function ,(ev2-maybe-store '($fs-cons-function) store-index)
-                          ($fs-init-bslambda ,(ev2-maker-form bslambda))
-                          ,(ev2-maker-form (lfun-bits fn))))))
+                          ($fs-init-bslambda ,(ev2-maker-form bslambda))))))
 
