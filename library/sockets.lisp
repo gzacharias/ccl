@@ -1647,6 +1647,7 @@ unsigned IP address."
 (defmethod socket-address-as-string ((socket-address unix-socket-address))
   (format nil "~S" (socket-address-path socket-address)))
 
+#-windows-target
 (defun copy-string-to-sockaddr_un (name sockaddr)
   "Copy a pathname to a sockaddr_un object, returning the length of
 the resulting sockaddr."
