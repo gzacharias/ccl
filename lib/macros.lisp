@@ -3816,7 +3816,7 @@ to be at least partially steppable."
 ;;; function was defined; this can happen during cross-compilation.)
 (defmacro with-eagain (fd direction &body body)
   (let* ((res (gensym))
-	 (eagain (symbol-value (read-from-string "#$EAGAIN"))))
+	 (eagain (read-from-string "#$EAGAIN")))
    `(loop
       (let ((,res (progn ,@body)))
 	(if (eql ,res (- ,eagain))
@@ -3831,7 +3831,7 @@ to be at least partially steppable."
 
 (defmacro ignoring-eintr (&body body)
   (let* ((res (gensym))
-         (eintr (symbol-value (read-from-string "#$EINTR"))))
+         (eintr (read-from-string "#$EINTR")))
     `(loop
        (let* ((,res (progn ,@body)))
          (unless (eql ,res (- ,eintr))
@@ -3839,7 +3839,7 @@ to be at least partially steppable."
 
 (defmacro ff-call-ignoring-eintr (&body body)
   (let* ((res (gensym))
-         (eintr (symbol-value (read-from-string "#$EINTR"))))
+         (eintr (read-from-string "#$EINTR")))
     `(loop
        (let* ((,res (progn ,@body)))
          (declare (fixnum ,res))
