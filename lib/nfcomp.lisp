@@ -751,7 +751,7 @@ Will differ from *compiling-file* during an INCLUDE")
 (defun fcomp-include (form env processing-mode &aux file)
   (fcomp-compile-toplevel-forms env)
   (verify-arg-count form 1 1)
-  (setq file (nx-transform (%cadr form) env))
+  (setq file (fcomp-transform (%cadr form) env))
   (unless (constantp file) (report-bad-arg file '(or string pathname)))
   (let ((actual (merge-pathnames (eval-constant file)
                                  (directory-namestring *compiling-file*))))
@@ -1009,7 +1009,8 @@ Will differ from *compiling-file* during an INCLUDE")
         (values new win)))))
 
 (defun fcomp-transform (form env)
-  (let* ((*nx-source-note-map* *fcomp-source-note-map*))
+  (let* ((*nx-source-note-map* *fcomp-source-note-map*)
+         (*target-backend* (find-backend *fasl-target*)))
     (nx-transform form env)))
 
 
