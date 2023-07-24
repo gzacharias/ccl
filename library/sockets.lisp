@@ -1647,11 +1647,7 @@ unsigned IP address."
   (format nil "~S" (socket-address-path socket-address)))
 
 #-windows-target
-(defconstant +socketaddr_un-sock-path-lan+ (/ (ensure-foreign-type-bits
-                                               (foreign-record-field-type 
-                                                (%find-foreign-record-type-field
-                                                 (parse-foreign-type '(:struct :sockaddr_un)) :sun_path)))
-                                              8))
+(defconstant +socketaddr_un-sock-path-lan+ (record-length :sockaddr_un.sun_path))
 
 #-windows-target
 (defun copy-string-to-sockaddr_un (name sockaddr)
