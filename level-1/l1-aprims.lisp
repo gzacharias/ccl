@@ -700,6 +700,35 @@ terminate the list"
               (t 'bogus)))))
   )
 
+#+cvm-target
+(progn
+  (defparameter *array-element-subtypes*
+    (let ((arr (make-array 256 :initial-element 'bogus)))
+      (macrolet ((init (subtag type)
+                   `(setf (svref arr ,subtag) ',type)))
+        (init cvm::subtag-complex-double-float-vector (complex double-float))
+        (init cvm::subtag-signed-16-bit-vector (signed-byte 16))
+        (init cvm::subtag-unsigned-16-bit-vector (unsigned-byte 16))
+        (init cvm::subtag-signed-8-bit-vector (signed-byte 8))
+        (init cvm::subtag-unsigned-8-bit-vector (unsigned-byte 8))
+        (init cvm::subtag-bit-vector bit)
+        (init cvm::subtag-simple-string base-char)
+        (init cvm::subtag-signed-32-bit-vector (signed-byte 32))
+        (init cvm::subtag-unsigned-32-bit-vector (unsigned-byte 32))
+        (init cvm::subtag-single-float-vector single-float)
+        (init cvm::subtag-complex-single-float-vector (complex single-float))
+        (init cvm::subtag-fixnum-vector fixnum)
+        (init cvm::subtag-signed-64-bit-vector (signed-byte 64))
+        (init cvm::subtag-unsigned-64-bit-vector (unsigned-byte 64))
+        (init cvm::subtag-double-float-vector double-float)
+        (init cvm::subtag-simple-vector t))
+      arr))
+  
+  (defun element-subtype-type (subtype)
+    (declare (type (unsigned-byte 8) subtype))
+    (%svref *array-element-subtypes* subtype))
+  )
+
 #+arm-target
 (progn
   (defparameter array-element-subtypes
@@ -724,7 +753,6 @@ terminate the list"
         (svref array-element-subtypes 
                (ash (- subtype arm::min-cl-ivector-subtag) (- arm::ntagbits)))))
   )
-
 
 ;;; %make-displaced-array assumes the following
 
