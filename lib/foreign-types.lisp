@@ -1404,6 +1404,12 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
               (parsed parsed)
               (t (parse-foreign-type type)))))))
 
+(defun %foreign-type-or-record-size-form (type units accessors)
+  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+    (return-from %foreign-type-or-record-size-form
+      (%deferred-foreign-size-form type units)))
+  (%foreign-type-or-record-size type units))
+
 (defun %foreign-type-or-record-size (type &optional (units :bits) accessors)
   (let* ((info (%foreign-type-or-record type)))
     (if (null accessors)
@@ -1442,6 +1448,13 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
      (%foreign-field-offset-form (foreign-pointer-type-to type) field-name))))
 
 (defun %foreign-access-form (base-form type bit-offset accessors)
+  ;;; *** TODO: maybe don't need all these other patches now
+  (when (and (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+             (typep type 'foreign-record-type))
+    (return-from %foreign-access-form
+      (%deferred-foreign-access-form base-form
+                                     `(,(foreign-record-type-name type) ,@accessors)
+                                     bit-offset)))
   (if (null accessors)
     (invoke-foreign-type-method :extract-gen type base-form bit-offset)
     (etypecase type
@@ -1459,6 +1472,13 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
         accessors)))))
 
 (defun %foreign-array-access-form (base-form type index-form)
+  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+    (return-from %foreign-array-access-form
+      (%deferred-foreign-array-access-form base-form
+                                           :some-type
+                                           ;;; ****** TODO
+                                           ;;;(foreign-record-type-name type)
+                                           index-form)))
   (etypecase type
     ((or foreign-pointer-type foreign-array-type)
      (let* ((to (if (foreign-array-type-p type)
@@ -1622,6 +1642,8 @@ result-type-specifer is :VOID or NIL"
 
 (defun %external-call-expander (whole env)
   (declare (ignore env))
+  (let ((expander (getf (ftd-attributes *target-ftd*) :call-expander)))
+    (when expander (return-from %external-call-expander (apply expander whole))))
   (destructuring-bind (name &rest args) whole
     (collect ((call))
       (let* ((info (or (gethash name (ftd-external-function-definitions

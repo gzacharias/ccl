@@ -50,7 +50,7 @@
                           (if loc
                             (%fixnum-ref loc)
                             (%sym-global-value '*fake-stack-frames*)))
-                        #+(or x86-target arm-target) frame-ptr
+                        #+(or x86-target arm-target cvm-target) frame-ptr
                         (%fixnum-ref tcr (- target::tcr.db-link
 					    target::tcr-bias))
                         0         ;; break level - not used

@@ -77,6 +77,9 @@
     arm64-asm
     arm64-lap))
 
+(defparameter *cvm-compiler-modules*
+  '(cvm-arch))
+
 (defparameter *ppc32-compiler-backend-modules*
   '(ppc32-backend ppc32-vinsns))
 
@@ -102,6 +105,10 @@
 
 (defparameter *arm64-compiler-backend-modules*
   '(arm64-backend arm64-vinsns arm642))
+
+(defparameter *cvm-compiler-backend-modules*
+  '(cvm-backend cvm2))
+
 
 (defparameter *ppc-xload-modules* '(xppcfasload xfasload heap-image ))
 (defparameter *x8632-xload-modules* '(xx8632fasload xfasload heap-image ))
@@ -219,7 +226,9 @@
     (:arm (append *arm-compiler-modules*
                   *arm-compiler-backend-modules*))
     (:arm64 (append *arm64-compiler-modules*
-                    *arm64-compiler-backend-modules*))))
+                    *arm64-compiler-backend-modules*))
+    (:cvm (append *cvm-compiler-modules*
+                  *cvm-compiler-backend-modules*))))
 
 (defparameter *other-lib-modules*
   '(streams pathnames backtrace

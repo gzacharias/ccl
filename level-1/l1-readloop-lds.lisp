@@ -797,6 +797,7 @@ commands but aren't")
                                       #+x86-target (%current-frame-ptr)
                                       #+arm-target (or (current-fake-stack-frame) (%current-frame-ptr))
                                       #+arm64-target *fake-stack-frames*
+                                      #+cvm-target 'NOT-IMPLEMENTED-YET
                                       (db-link)
                                       (1+ *break-level*)))
          (*default-integer-command* `(:c 0 ,(1- (length (cdr (bt.restarts context))))))
