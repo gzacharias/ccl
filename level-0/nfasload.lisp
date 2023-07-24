@@ -683,7 +683,7 @@
 
 
 
-#-x86-target
+#-(or x86-target cvm-target)
 (deffaslop $fasl-code-vector (s)
   (let* ((element-count (%fasl-read-count s))
          (size-in-bytes (* 4 element-count))
@@ -1227,16 +1227,19 @@
       (dolist (f (prog1 *xload-cold-load-documentation* (setq *xload-cold-load-documentation* nil)))
         (apply 'set-documentation f))
       ;; Can't bind any specials until this happens
-      (let* ((max 0))
-        (%map-areas #'(lambda (symvec)
-                        (when (= (the fixnum (typecode symvec))
-                                 target::subtag-symbol)
-                          (let* ((s (symvector->symptr symvec))
-				 (idx (symbol-binding-index s)))
-                            (when (> idx 0)
-                              (cold-load-binding-index s))
-                            (when (> idx max)
-                              (setq max idx))))))
+      (let ((max (reset-binding-indexes)))
         (%set-binding-index max))
       (%fasload *xload-startup-file*)))
 
+(defun reset-binding-indexes ()
+  (let ((max 0))
+    (%map-areas (lambda (symvec)
+                  (when (= (the fixnum (typecode symvec))
+                           target::subtag-symbol)
+                    (let* ((s (symvector->symptr symvec))
+                           (idx (symbol-binding-index s)))
+                      (when (> idx 0)
+                        (cold-load-binding-index s))
+                      (when (> idx max)
+                        (setq max idx))))))
+    max))

@@ -1768,9 +1768,11 @@ Will differ from *compiling-file* during an INCLUDE")
 ;;; case.
 #-x86-target
 (defun fasl-dump-function (f)
+  #-CVM
   (if (and (not (eq *fasl-backend* *host-backend*))
            (typep f 'function))
     (compiler-bug "Dumping a native function constant ~s during cross-compilation." f))
+  #-CVM
   (if (and (= (typecode f) target::subtag-xfunction)
            (= (typecode (uvref f 0)) target::subtag-u8-vector))
     (fasl-xdump-clfun f)

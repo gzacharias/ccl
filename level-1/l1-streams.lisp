@@ -265,6 +265,8 @@
         #+arm-target
         (= (logand subtag arm::fulltagmask)
            arm::fulltag-immheader)
+        #+cvm-target
+        (ivector-typecode-p subtag)
       (error "~s is not an ivector subtype." element-type))
     (let* ((size-in-octets (ccl::subtag-bytes subtag element-count)))
       (multiple-value-bind (vector pointer)

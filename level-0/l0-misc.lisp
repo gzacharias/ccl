@@ -112,6 +112,8 @@
          :void)))
     (bug "Bug called with non-simple-base-string.")))
 
+#-CVM-TARGET (progn
+
 (defun total-bytes-allocated ()
   (%heap-bytes-allocated)
   #+not-any-more
@@ -376,7 +378,7 @@
                                "~%  tstack:~12T~10D (~DK)  ~33T~10D (~DK)  ~54T~10D (~DK)"
 
                               tsp-total (k tsp-total) tsp-free (k tsp-free) tsp-used (k tsp-used)))))))))))))
-
+) ;#-CVM-TARGET
 
 (defun list-length (l)
   "Return the length of the given LIST, or NIL if the LIST is circular."

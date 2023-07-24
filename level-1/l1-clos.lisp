@@ -396,7 +396,9 @@
                                    map
                                    table
                                    (dpb 1 $lfbits-numreq
-				     (ash -1 $lfbits-noname-bit))))
+				     (ash -1 $lfbits-noname-bit)))
+              #+cvm
+              (cvm-make-slot-lookup-fn small map table))
 	     (class (%wrapper-class wrapper))
 	     (get-f
               #+ppc-target
@@ -435,7 +437,9 @@
                                    #'%maybe-std-slot-value-using-class
                                    #'%slot-id-ref-missing
                                    (dpb 2 $lfbits-numreq
-                                        (ash -1 $lfbits-noname-bit))))
+                                        (ash -1 $lfbits-noname-bit)))
+              #+cvm
+              (cvm-make-slot-value-function small map table class))
 	     (set-f
               #+ppc-target
               (gvector :function
@@ -474,7 +478,9 @@
                #'%maybe-std-setf-slot-value-using-class
                #'%slot-id-set-missing
                (dpb 3 $lfbits-numreq
-                    (ash -1 $lfbits-noname-bit)))))
+                    (ash -1 $lfbits-noname-bit)))
+              #+cvm
+              (cvm-make-slot-setter-function small map table class)))
 	(setf (%wrapper-slot-id->slotd wrapper) lookup-f
 	      (%wrapper-slot-id-value wrapper) get-f
 	      (%wrapper-set-slot-id-value wrapper) set-f
@@ -1719,7 +1725,9 @@ governs whether DEFCLASS makes that distinction or not.")
                     #'false
                     0
                     (logior (ash 1 $lfbits-gfn-bit)
-                            (ash 1 $lfbits-aok-bit))))))
+                            (ash 1 $lfbits-aok-bit))))
+           #+cvm-target
+           (cvm-allocate-gf-instance wrapper slots dt)))
     (setf (slot-vector.instance slots) fn)
     (when dt
       (setf (%gf-dispatch-table-gf dt) fn))

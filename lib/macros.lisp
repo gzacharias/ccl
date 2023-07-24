@@ -3145,7 +3145,7 @@ to binary 0."
 (defun rlet-sizes (inits &optional clear-p &aux result)
   (dolist (item inits (nreverse result))
     (push `(,(car item)
-            ,(%foreign-type-or-record-size (cadr item) :bytes)
+            ,(%foreign-type-or-record-size-form (cadr item) :bytes)
             ,@(if clear-p '(:clear t)))
           result)))
 
@@ -3198,7 +3198,7 @@ to binary 0."
   (destructuring-bind (recname &rest accessors) (if (symbolp recname)
                                                   (decompose-record-accessor recname)
                                                   (list recname))
-    (%foreign-type-or-record-size recname :bytes accessors)))
+    (%foreign-type-or-record-size-form recname :bytes accessors)))
 
 (defun make-record-form (record-name allocator &rest initforms)
   (let* ((ftype (%foreign-type-or-record record-name))

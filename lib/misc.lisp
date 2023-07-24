@@ -825,6 +825,7 @@ are running on, or NIL if we can't find any useful information."
   (#+ppc-target ppc-xdisassemble
    #+x86-target x86-xdisassemble
    #+arm-target arm-xdisassemble
+   #+cvm-target cvm-xdisassemble
    (require-type (function-for-disassembly thing) 'compiled-function)))
 
 (defun function-for-disassembly (thing)

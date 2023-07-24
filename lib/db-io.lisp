@@ -846,7 +846,9 @@ satisfy the optional predicate PREDICATE."
 	    (open-interface-db-pathname "functions.cdb" dir))))
 
 (defun load-os-constant (sym &optional query)
-  (let* ((val (do-interface-dirs (d)
+  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+    (return-from load-os-constant (if query t nil)))
+  (let ((val (do-interface-dirs (d)
 		    (let* ((v (db-lookup-constant (db-constants d) sym)))
 		      (when v (return v))))))
     (if query
@@ -865,27 +867,32 @@ satisfy the optional predicate PREDICATE."
                    (string name)))
          (fv (gethash string (fvs))))
     (unless fv
-      (with-cstrs ((cstring string))
-        (let* ((type
-                (do-interface-dirs (d)
-                  (let* ((vars (db-vars d)))
-                    (when vars
-                      (rletZ ((value :cdb-datum)
-                              (key :cdb-datum))
-                        (setf (pref key :cdb-datum.data) cstring
-                              (pref key :cdb-datum.size) (length string)
-                              (pref value :cdb-datum.data) (%null-ptr)
-                              (pref value :cdb-datum.size) 0)
-                        (cdb-get vars key value)
-                        (let* ((vartype (extract-db-type value ftd)))
-                          (when vartype (return vartype)))))))))
+        (let* ((type (load-target-ftd-type string)))
           (when type
             (setq fv (%cons-foreign-variable string type))
             (resolve-foreign-variable fv nil)
-            (setf (gethash string (fvs)) fv)))))
+            (setf (gethash string (fvs)) fv))))
     (if query-only
       (not (null fv))
       (or fv (error "Foreign variable ~s not found" string)))))
+
+(defun load-target-ftd-type (string)
+  (let ((lookup (getf (ftd-attributes *target-ftd*) :type-lookup)))
+    (if lookup
+      (funcall lookup string)
+      (with-cstrs ((cstring string))
+        (do-interface-dirs (d)
+          (let* ((vars (db-vars d)))
+            (when vars
+              (rletZ ((value :cdb-datum)
+                      (key :cdb-datum))
+                (setf (pref key :cdb-datum.data) cstring
+                      (pref key :cdb-datum.size) (length string)
+                      (pref value :cdb-datum.data) (%null-ptr)
+                      (pref value :cdb-datum.size) 0)
+                (cdb-get vars key value)
+                (let* ((vartype (extract-db-type value *target-ftd*)))
+                  (when vartype (return vartype)))))))))))
 
 
 (set-dispatch-macro-character 
@@ -1021,9 +1028,12 @@ satisfy the optional predicate PREDICATE."
       (when info (return info)))))
 
 (defun load-external-function (sym query)
-  (let* ((def (or (do-interface-dirs (d)
-		    (let* ((f (db-lookup-function (db-functions d) sym)))
-		      (when f (return f))))
+  (let* ((def (or (let ((lookup (getf (ftd-attributes *target-ftd*) :function-lookup)))
+                    (if lookup
+                      (funcall lookup sym)
+                      (do-interface-dirs (d)
+                        (let* ((f (db-lookup-function (db-functions d) sym)))
+                          (when f (return f))))))
                   (unless query
                     (error "Foreign function not found: ~s" sym)))))
     (if query
@@ -1898,6 +1908,8 @@ satisfy the optional predicate PREDICATE."
 (defun load-record (name &optional (ftd *target-ftd*))
   ;; Try to destructively modify any info we already have.  Use the
   ;; "escaped" name (keyword) for the lookup here.
+  (when (getf (ftd-attributes ftd) :defer-to-runtime)
+    (return-from load-record (%defer-load-record name)))
   (let* ((already (or (info-foreign-type-struct name ftd)
                       (info-foreign-type-union name ftd)))
          (name (unescape-foreign-name name)))
