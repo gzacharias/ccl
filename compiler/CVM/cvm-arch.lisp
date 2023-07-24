@@ -402,9 +402,11 @@
 ;; Double float layout
 (def-cvm-archmacro ccl::%make-dfloat () `(ccl::%alloc-misc 2 ,subtag-double-float))
 
-;; Ratio layout
 (def-cvm-archmacro ccl::%numerator (x) `(ccl::%svref ,x 0))
 (def-cvm-archmacro ccl::%denominator (x) `(ccl::%svref ,x 1))
+
+(def-cvm-archmacro ccl::%realpart (x) `(ccl::uvref ,x 0))
+(def-cvm-archmacro ccl::%imagpart (x) `(ccl::uvref ,x 1))
 
 (def-cvm-archmacro ccl::immediate-p-macro (thing)
   (let* ((tag (gensym)))
@@ -435,11 +437,10 @@
 (def-cvm-archmacro ccl::lfun-vector-lfun (v) v)
 
 (def-cvm-archmacro ccl::nth-immediate (f i)
-  `(error "can't get immediates for ~s" (list ,f ,i)))
+  `(ccl::%nth-immediate ,f (the fixnum (- (the fixnum ,i) 1))))
 
 (def-cvm-archmacro ccl::set-nth-immediate (f i new)
-  `(error "can't set immediates for ~s" (list ,f ,i ,new)))
-
+  `(ccl::%set-nth-immediate ,f (the fixnum (- (the fixnum ,i) 1)) ,new))
 
 ;; The lap functions %symbol->symptr and %symptr->symbol is where we
 ;; handle nilsym <-> nil.  These are just tag manipulations
@@ -451,87 +452,12 @@
   ;; static-cons-area free-static-conses ret1valaddr (unquoted!)
   ;; 'ppc::altivec-present 'stack-size 'default-allocation-quantum 'oldest-ephemeral
   (when (ccl::quoted-form-p name) (setq name (cadr name)))
-  `(ccl::%get-native-value ',name))
+  `(ccl::cvm-get-kernel-global ',name))
 
 ;; The assumption that this is a macptr is baked deeply into the code.  Will have to arrange for that to be true
 (def-cvm-archmacro ccl::%get-kernel-global-ptr (name macptr)
   (when (ccl::quoted-form-p name) (setq name (cadr name)))
-  `(ccl::%store-native-value-ptr ,macptr ',name))
-
-
-#|
-;;; UUO encoding
-(defconstant uuo-format-nullary 0)      ; 12 bits of code 
-(defconstant uuo-format-unary 1)        ; 8 bits of info - NOT type info - 4-bit reg 
-(defconstant uuo-format-error-lisptag 2) ; 2 bits of lisptag info, 4-bit reg 
-(defconstant uuo-format-error-fulltag 3) ; 3 bits of fulltag info, 4 bit reg 
-
-(defconstant uuo-format-error-xtype 4)  ; 8 bits of extended type/subtag info, 4 bit reg 
-(defconstant uuo-format-cerror-lisptag 10) ; continuable, lisptag, reg 
-(defconstant uuo-format-cerror-fulltag 11) ; continuable, fulltag, reg 
-(defconstant uuo-format-cerror-xtype 12) ; continuable, xtype, reg         
-(defconstant uuo-format-binary 15)      ;  4 bits of code, r1, r0 
-
-|#
-
-#|
-;;; xtypes: 8-bit integers used to report type errors for types that can't
-;;; be represented via tags.
-
-(defconstant xtype-unsigned-byte-24  252)
-(defconstant xtype-array2d  248)
-(defconstant xtype-array3d  244)
-(defconstant xtype-integer  4)
-(defconstant xtype-s64  8)
-(defconstant xtype-u64  12)
-(defconstant xtype-s32  16)
-(defconstant xtype-u32  20)
-(defconstant xtype-s16  24)
-(defconstant xtype-u16  28)
-(defconstant xtype-s8  32)
-(defconstant xtype-u8  36)
-(defconstant xtype-bit  40)
-(defconstant xtype-rational 44)
-(defconstant xtype-real 48)
-(defconstant xtype-number 52)
-(defconstant xtype-char-code 56)
-
-|#
-
-#|
-;;; Condition field values.
-(ccl::defenum (:prefix "CVM-COND-")
-  eq
-  ne
-  hs
-  lo
-  mi
-  pl
-  vs
-  vc
-  hi
-  ls
-  ge
-  lt
-  gt
-  le
-  al)
-
-;;; FPSCR exception bits
-(defconstant ioc 0)                     ;invalid operation
-(defconstant dzc 1)                     ;division by 0
-(defconstant ofc 2)                     ;overflow
-(defconstant ufc 3)                     ;underflow
-(defconstant ixc 4)                     ;inexact
-
-(defconstant ioe 8)                     ;invalid operation enable
-(defconstant dze 9)                     ;division by 0 enable
-(defconstant ofe 10)                    ;overflow enable
-(defconstant ufe 11)                    ;underflow enable
-(defconstant ixe 12)                    ;inexact enable
-
-|#
-
+  `(ccl::cvm-get-kernel-global-ptr ',name ,macptr))
 
 ;; This gets looked up by the fasldumper, but we won't actually get that far.  But have it for now
 (defconstant fasl-version #x66)

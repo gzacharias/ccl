@@ -40,51 +40,63 @@
                 cvm-%kernel-import
                 cvm-ffi-function
                 cvm-external-call
-                cvm-access-foreign-record
-                (setf cvm-access-foreign-record)
+                cvm-access-foreign-field
+                setf-cvm-access-foreign-field
                 cvm-access-foreign-array
-                ;(setf cvm-access-foreign-array)
-                cvm-foreign-size
-                %get-native-value
-                %store-native-value-ptr))
+                cvm-os-constant
+                (setf cvm-access-foreign-array)
+                cvm-foreign-bit-size
+                cvm-foreign-byte-offset
+                cvm-get-kernel-global
+                cvm-get-kernel-global-ptr))
 
-(defstruct (cvm-foreign-pointer-type (:include foreign-pointer-type)
-                                     (:constructor make-cvm-foreign-pointer-type
-                                                   (&key name bits)))
+(defstruct (deferred-foreign-pointer-type (:include foreign-pointer-type)
+                                          (:constructor make-deferred-foreign-pointer-type
+                                                        (&key name bits)))
   (name nil))
 
 ;; this takes care of %foreign-type-or-record
-(defun %defer-load-record (name)
+(defun %deferred-load-record (name)
   (assert (keywordp name))
   (if (eq name :address)
-    (make-cvm-foreign-pointer-type :name name)
+    (make-deferred-foreign-pointer-type :name name)
     (unless (info-foreign-type-definition name)
-      (make-foreign-record-type :kind :struct
-                                :name name))))
+      (make-foreign-record-type :kind :struct :name name))))
 
-(defun %deferred-foreign-access-form (base-form accessor bit-offset)
-  `(cvm-access-foreign-record ,base-form ',accessor ,bit-offset))
+(defun %deferred-foreign-access-form (base-form record-name bit-offset accessors)
+  (assert (zerop bit-offset)) ;;; ** TODO: if this never triggers, get rid of the arg.
+  `(cvm-access-foreign-field ,base-form
+                             ',(if accessors (cons record-name accessors) record-name)
+                             ,bit-offset))
+
+(defsetf cvm-access-foreign-field setf-cvm-access-foreign-field)
 
 (defun %deferred-foreign-array-access-form (base-form name index-form)
   (assert (keywordp name))
   `(cvm-access-foreign-array ,base-form ',name ,index-form))
 
-(defun %deferred-foreign-size-form (type units)
-  `(values (ceiling
-            (cvm-foreign-size ',type)
-            ,(ecase units (:bits 1) (:bytes 8) (:words 32)))))
+(defun %deferred-foreign-size-form (type-name units accessors)
+  (let ((form `(cvm-foreign-bit-size '(,type-name ,@accessors))))
+    (ecase units
+      (:bits form)
+      (:bytes `(ash (%i+ ,form 7) -3))
+      (:words `(ash (%i+ ,form 31) -5)))))
 
+(defun %deferred-field-offset-form (record-name field-name)
+  ;; this is for get-field-offset which returns 3 values, but the last 2 are never used in ccl
+  `(values (cvm-foreign-field-byte-offset ',record-name ',field-name) 'unimplemented-record-type 0))
 
 (defun %deferred-foreign-init-forms (ptr record-name inits)
-  (assert (keywordp record-name))
-  (if (null (cdr inits))
-    `((setf ,(%deferred-foreign-access-form ptr record-name 0) ,(car inits)))
-    (loop with prefix = (string record-name)
-      for (key init) on inits by #'cddr
-      collect `(setf ,(%deferred-foreign-access-form ptr
-                                                     (make-keyword (%str-cat prefix "." (string key)))
-                                                     0)
-                     ,init))))
+  (when inits
+    (assert (keywordp record-name))
+    (assert (or (null (cdr inits)) (evenp (length inits))))
+    (if (null (cdr inits))
+      `((setf ,(%deferred-foreign-access-form ptr record-name 0 ()) ,(car inits)))
+      ;; make like %foreign-record-field-forms
+      (loop for (key valform) on inits by #'cddr
+        do (assert (keywordp key))
+        collect `(setf ,(%deferred-foreign-access-form ptr record-name 0 (list key))
+                       ,valform)))))
 
 ;;; Below was first attempt, might want to back out of some of this:
 

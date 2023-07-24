@@ -4,10 +4,16 @@
 ;; TODO:  pass the "vreg" arg in, it says whether it's being evaluated for a vlaue, and it's really useful
 ;;(fcomp-file src (or compile-file-original-truename (namestring orig-src)) compile-file-original-buffer-offset lexenv)
 
+;;; *** TODO:  A "bslambda" is really compiled code.  It's not a lambda, it's a readable
+;;; representation of a function.  We don't do (FUNC (BSLAMBDA)).  LOADING A BSLAMBDA SHOULD
+;;; just make a function!!!  Get rid of BSLAMBDA entirely and just make a $BS-COMPILED-FUNCTION
+;;; operator... outputting an lfun should output ($BS-COMPILED-FUNCTION name argspecs etc)
+;;;   ccl-function object should have a ccl-function-source which can be a list with all the info
 
 (defvar *ev2-cur-afunc*)
 
 (defvar *ev2-lex-vars*)
+(defvar *ev2-tags*)
 
 (defun ev2-lex-var-p (var)
   (check-type var var)
@@ -42,8 +48,11 @@
   (get-lex-vcell tag t))
 
 
-(defparameter *ev2-prototype* (nlambda ev2-func (&rest args)
-                                (bseval-apply-lambda nil 'ev2-lambda args)))
+(defparameter *ev2-prototype* (nfunction ev2-func
+                                (lambda (&rest args)
+                                  (declare (ignore args))
+                                  (error "Can't eval: ~s" 'ev2-lambda))))
+
 #+x86-target ;; not used, for debugging
 (progn
 
@@ -80,46 +89,54 @@
       (uvset fv (offs fv 'ev2-lambda) lambda-sexp))
     (function-vector-to-function fv)))
 
-;;; (defun bseval-apply-lambda (&rest stuff) (format t "~&called with: ~s" stuff))
+(defmacro bslambda-bits (bslambda) `(car (last (third ,bslambda))))
 
-
+;;; *** TODO: rename to cvm2-
 (defun ev2-compile (afunc &optional lambdaform record-symbols)  ;;x862-compile
   (dolist (a (afunc-inner-functions afunc))
     (unless (afunc-lfun a)
       (assert (eq (afunc-parent a) afunc))
       (ev2-compile a (if lambdaform (afunc-lambdaform a)) record-symbols)))
-  #+NO  (FORMAT T "~&Compiling ~s, inh ~s vcells: ~s, fcells: ~s"  afunc
-          (afunc-inherited-vars afunc)
-          (afunc-vcells afunc)
-          (afunc-fcells afunc))
+
   #+NO (pprint (decomp-acode (afunc-acode afunc)))
-  #+NO (push afunc *AF)
-  ;(when (afunc-vcells afunc) (break "What to do about vcells? ~s" (afunc-vcells afunc)))
-  ;(when (afunc-fcells afunc) (break "What to do about fcells? ~s" (afunc-fcells afunc)))
-  (let ((acode (afunc-acode afunc))
-        (inherited-vars (afunc-inherited-vars afunc)))
-    (assert (eq (acode-operator-sym acode) 'lambda-list))
-    (when  inherited-vars
-      (assert (afunc-parent afunc))
-      (assert (let* ((outer-afunc (afunc-parent afunc))
-                     (outer-vars (afunc-all-vars outer-afunc))
-                     (outer-inh (afunc-inherited-vars outer-afunc)))
-                (every (lambda (v)
-                         (let ((outer-var (ev2-var-inherited-from v)))
-                           (and outer-var
-                                (or (member outer-var outer-vars)
-                                    (member outer-var outer-inh)))))
-                       inherited-vars))))
-     (let ((bslambda 
-           (let ((*ev2-cur-afunc* afunc))
-             (apply #'ev2-lambda-form inherited-vars (acode-operands acode)))))
-      (setf (afunc-lfun afunc)
-            (ev2-make-lfun (afunc-name afunc) bslambda)))
+
+  (let* ((inherited-vars (afunc-inherited-vars afunc))
+         (fbits (afunc-bits afunc))
+         (bslambda 
+          (let ((*ev2-cur-afunc* afunc)
+                (acode (afunc-acode afunc)))
+            (assert (eq (acode-operator-sym acode) 'lambda-list))
+            (when inherited-vars
+              (assert (afunc-parent afunc))
+              (assert (let* ((outer-afunc (afunc-parent afunc))
+                             (outer-vars (afunc-all-vars outer-afunc))
+                             (outer-inh (afunc-inherited-vars outer-afunc)))
+                        (loop for v in inherited-vars
+                          always (let ((outer-var (ev2-var-inherited-from v)))
+                                   (and outer-var
+                                        (or (member outer-var outer-vars)
+                                            (member outer-var outer-inh))))))))
+            (apply #'ev2-lambda-form (afunc-name afunc) fbits inherited-vars (acode-operands acode)))))
+
+    (when (and (logbitp $fbitnextmethargsp fbits)
+               (not (logbitp $fbitmethodp fbits)))
+      (break "When does this happen?")
+      (let ((parent (afunc-parent afunc)))
+        (when parent
+          (bitsetf $fbitnextmethargsp (afunc-bits parent)))))
+
+    ;; could make the xfunction, would get a bit more error checking.
+    (setf (afunc-lfun afunc)
+          (ev2-make-lfun (afunc-name afunc) bslambda))
+
     ;; now that we have an lfun, fixup any forward refs to the fn.
     (loop for ref in (afunc-fwd-refs afunc)
       do (assert (equal ref `($bs-quote ,afunc)))
       do (setf (cadr ref) (afunc-lfun afunc))))
   afunc)
+
+;; x862-lambda (our ev2-lambda-form) returns this
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; ev2-specials
@@ -168,17 +185,12 @@
                                 ,@body)))))
          ,@(if (consp operator-name-or-names)
              (loop for operator-name in operator-name-or-names
-               nconc (list #+NO`(when (gethash ',operator-name *ev2-specials*)
-                              (format t "~&Replacing defn of ~s" ',operator-name))
-                           ; (svset *x862-specials* (%ilogand #.operator-id-mask (%nx1-operator ,operator-name)) ,fun)
-                           `(setf (gethash ',operator-name *ev2-specials*) fn)))
-             (list #+NO `(when (gethash ',operator-name-or-names *ev2-specials*)
-                      (format t "~&Replacing defn of ~s" ',operator-name-or-names))
-                   ; (svset *x862-specials* (%ilogand #.operator-id-mask (%nx1-operator ,operator-name)) ,fun)
-                   `(setf (gethash ',operator-name-or-names *ev2-specials*) fn)))))))
+               nconc (list `(setf (gethash ',operator-name *ev2-specials*) fn)))
+             (list `(setf (gethash ',operator-name-or-names *ev2-specials*) fn)))))))
 
 (defmacro defev2-fn (operator arglist runtime-op)
   (assert (every (lambda (x) (and (symbolp x) (not (eql #\& (char (string x) 0))))) arglist))
+  (check-type runtime-op symbol)
   (let ((ev2-args (mapcar (lambda (arg) `(ev2-form ,arg)) arglist)))
     `(defev2 ,operator ,arglist
        (list ',runtime-op ,@ev2-args))))
@@ -192,92 +204,102 @@
     (assign-lex-vcell var)
     (var-name var)))
 
-;;; Ok, so as we compile a lambda, all its vars get assigned a location in a vector
-;;; that's going to be created on entry.  the locations will contain a cons that will be
-;;;  the value cell of the variable.
 
-;;; Ok,  but as we're compiling the inner function, we might have some refs to variables in outer
-;;; function.  we have a VAR that is an inherited var, that points to the VAR in the outer function,
-;;; but we don't know what vcell it will be assigned.  So we will not be accessing them from the
-;;;  OK, the way this will work, is that WE will take the set of value cells as the initial args,
-;;;    and will assign SLOTS IN OUR vars vector, and on entry to function, for inherited ones,
-;;;    we will store the vcell.   ONCE entry is completed, the vector
-
-;;;
-
-;;;; *** AFUNC-ALL-VARS has all the vars we create, including internal LET's..  At compile time they get
-;;;;   assigned an offset.  At run time, the offset will get a VALUE-CELL created when it gets bound.
-;;;;  When this function is referenced, it will call (MAKE-CLOZURE, which will at runtime
-;;;;   look up the inherited var VALUE CELLS and arrange to pass them in when called.
-
-;;;;    so MAKE-CLOSURE <Inner-FUNC>.  Loop through inner func's inherited vars.
-;;;;     these are the vars we want to get
-;;;; So have inherited arg, look up with VAR-EA of the parent var.
-;;;;  SO Innher-func has been compiled, and now we're compiling the parent function.  So WE CAN LOOK UP THE
-;;;; VALUE CELL IN OUR VECTOR  ($lex-ref <parent-var>)
-
-;;; (nfunction ,name (lambda (&lap 0) (x86-lap-function ,name ,arglist ,@body)))
-
-(defun ev2-lambda-form (inh req opt rest keys auxen acode p2decls &aux lexpr)
-;; ok, x862 stores the var location in VAR-LREG
+(defun ev2-lambda-form (name fbits inh req opt rest keys auxen acode p2decls &aux lexpr (bits 0))
   (declare (ignorable p2decls)) ;; stuff like tail-call-allow, safety, trust-declarations.
   (assert (every #'ev2-var-inherited-from inh))
   (assert (not (and (consp (car req)) (eq (caar req) '&lap))))
-  ;;; **** TODO we currently lose the afunc bits totally, need to fix this!!!
-  ;;; **** Need to compute the $LFBITS- for the function.
-  ;;;(assert (not (logbitp $fbitmethodp (afunc-bits *ev2-cur-afunc*))))
-  ;;; if methodp, first req is the method-var
   (when (consp rest)
     (assert (and (null opt) (null keys) (equal auxen '(nil nil))))
     (setq lexpr t rest (car rest))
     (assert (not (logbitp $vbitspecial (nx-var-bits rest)))))
-  ;; why doesn't pass1 just handle this???
   (when auxen
     (destructuring-bind (vars vals) auxen
       (assert (= (length vars) (length vals)))
       (when vars
         (setq acode (make-acode (%nx1-operator let*) vars vals acode p2decls)))))
-  (let ((*ev2-lex-vars* nil))
-    ;; Ok, if have inherited, we're compiling an inner function.
-    ;;   inherited vars are like [Local -> PARNET-VAR],
-    ;;  S IT IS NOT INCLUDED IN ALL-VARS.  When called runtime value cells of the parent are going to
-    ;; be passed in as first args.
-    (prog1
-      `(bslambda ,(ev2-quote (afunc-name *ev2-cur-afunc*))
-                 (,(mapcar #'ev2-binding-var inh)
-                  ,(mapcar #'ev2-binding-var req)
-                  ,(when opt
-                     (destructuring-bind (opt-vars opt-inits opt-supp-vars) opt
-                       (assert (= (length opt-vars) (length opt-inits) (length opt-supp-vars)))
-                       (mapcar (lambda (var init supp)
-                                 (list (ev2-binding-var var)
-                                       (EV2-FORM init)
-                                       (and supp (ev2-binding-var supp))))
-                               opt-vars opt-inits opt-supp-vars)))
-                  ,(when rest (ev2-binding-var rest))
-                  ,(when keys
-                     (destructuring-bind (allow-other-keys-p keyvars keysupp keyinits keykeys) keys
-                       (assert (= (length keyvars) (length keysupp) (length keyinits) (length keykeys)))
-                       (cons allow-other-keys-p
-                             (map 'list (lambda (key var init supp)
-                                          (list (EV2-QUOTE key) ;; Need to quote it so gets converted
-                                                (ev2-binding-var var)
-                                                (EV2-FORM init)
-                                                (and supp (ev2-binding-var supp))))
-                                  keykeys keyvars keyinits keysupp)))))
-                 ,(let* ((body (ev2-form acode)))
-                    (if lexpr
-                      (let ((rest-var (get-lex-vcell rest)))
-                        (ev2-progn
-                         `(($BS-LSET ,rest-var ($BS-LEXPR-ARGS ,rest-var))
-                           ,body)))
-                      body))
-                 ,(length *ev2-lex-vars*))
-      (assert (every #'(lambda (v) (or (member (car v) inh)
-                                       (member (car v) (afunc-all-vars *ev2-cur-afunc*))
-                                       (consp (car v)) ;; block tag
-                                       (vectorp (car v)))) ;; tagbody
-                     *ev2-lex-vars*)))))
+
+  ;; No, leave a slot so can set later.
+  ;;(when (null name) (bitsetf $lfbits-noname-bit bits))
+
+  (when (logbitp $fbitnonnullenv fbits) (bitsetf $lfbits-nonnullenv-bit bits))
+  (when (logbitp $fbitccoverage fbits) (bitsetf $lfbits-code-coverage-bit bits))
+  (when (logbitp $fbitmethodp fbits) (bitsetf $lfbits-method-bit bits))
+  (when (logbitp $fbitnextmethp fbits)
+    (assert (logbitp $fbitmethodp fbits))
+    (bitsetf $lfbits-nextmeth-bit bits))
+  (when (logbitp $fbitnextmethargsp fbits)
+    (if (logbitp $fbitmethodp fbits)
+      (bitsetf $lfbits-nextmeth-with-args-bit bits)
+      (break "When does this happen")))
+  ;; IS THIS RIGHT?  ONly take an extra arg if nextmethp is true.
+  ;; COMPUTE-SLOTS is the first fn compiled that has nextmethp
+  (when (and (logbitp $fbitmethodp fbits)
+             (not (logbitp $fbitnextmethp fbits)))
+    (pop req))
+
+  (let* ((*ev2-lex-vars* nil)
+         (*ev2-tags* 0)
+         (argspecs (list
+                    ;; inh
+                    (let ((num-inh (length inh)))
+                      (setf (ldb $lfbits-numinh bits) (min num-inh (ldb $lfbits-numinh -1)))
+                      (mapcar #'ev2-binding-var inh))
+                    ;; req
+                    (let ((num-req (length req)))
+                      (when (and (logbitp $fbitmethodp fbits) ;; lie, to match x86...
+                                 (logbitp $fbitnextmethp fbits)) ;; lie about hte extra arg.
+                        (assert (> num-req 0))
+                        (decf num-req))
+                      (setf (ldb $lfbits-numreq bits) (min num-req (ldb $lfbits-numreq -1)))
+                      (mapcar #'ev2-binding-var req))
+                    ;; opt
+                    (when opt
+                      (destructuring-bind (opt-vars opt-inits opt-supp-vars) opt
+                        (let ((num-opt (length opt-vars)))
+                          (assert (= num-opt (length opt-inits) (length opt-supp-vars)))
+                          (setf (ldb $lfbits-numopt bits) (min num-opt (ldb $lfbits-numopt -1)))
+                          (mapcar (lambda (var init supp)
+                                    (unless (and (nx-null init) (not supp))
+                                      (bitsetf $lfbits-optinit-bit bits))
+                                    (list (ev2-binding-var var)
+                                          (ev2-form init)
+                                          (and supp (ev2-binding-var supp))))
+                                  opt-vars opt-inits opt-supp-vars))))
+                    ;; rest
+                    (when rest
+                      (bitsetf (if lexpr $lfbits-restv-bit $lfbits-rest-bit) bits)
+                      (ev2-binding-var rest))
+                    ;; keys
+                    (when keys
+                      (bitsetf $lfbits-keys-bit bits)
+                      (destructuring-bind (allow-other-keys-p keyvars keysupp keyinits keykeys) keys
+                        (assert (= (length keyvars) (length keysupp) (length keyinits) (length keykeys)))
+                        (when allow-other-keys-p (bitsetf $lfbits-aok-bit bits))
+                        (cons allow-other-keys-p
+                              (map 'list (lambda (key var init supp)
+                                           (list (ev2-quote key) ;; Need to quote it so gets converted
+                                                 (ev2-binding-var var)
+                                                 (ev2-form init)
+                                                 (and supp (ev2-binding-var supp))))
+                                   keykeys keyvars keyinits keysupp))))
+                    ;; flags
+                    bits))
+         (body (ev2-form acode)))
+    (when lexpr
+      (let ((rest-var (get-lex-vcell rest)))
+        (setq body (ev2-progn
+                    `(($BS-LSET ,rest-var ($BS-LEXPR-ARGS ,rest-var))
+                      ,body)))))
+    (assert (every #'(lambda (v) (or (member (car v) inh)
+                                     (member (car v) (afunc-all-vars *ev2-cur-afunc*))
+                                     (consp (car v)))) ;; block tag
+                   *ev2-lex-vars*))
+    `(bslambda ,(ev2-quote name)
+               ,argspecs
+               ,body
+               ,(length *ev2-lex-vars*))))
+
 
 ;; Not clear why pass1 doesn't just handle this.
 (defev2 lambda-bind (vals req rest keys-p auxen body p2decls)
@@ -451,7 +473,7 @@
 (defev2 self-call (arglist &optional spread-p)
   ;; Call back to the function being compiled.  %double-float does this.
   ;; also compile=named-function
-  `(,(if spread-p '$BS-apply-lambda '$BS-funcall-lambda)
+  `(,(if spread-p '$BS-apply '$BS-funcall)
     ($BS-this-function) 
     ,@(mapcar #'ev2-form (ev2-augmented-arglist *ev2-cur-afunc* arglist))))
 
@@ -576,7 +598,7 @@
 
 ;; Ops that return T or NIL.
 (defun ev2-boolean-op-p (op)
-  (member op '($BS-not $BS-yes $BS-eq $BS-ne $BS-gt $BS-le $BS-lt $BS-ge $BS-characterp $BS-endp
+  (member op '($BS-not $BS-yes $BS-eq $BS-gt $BS-le $BS-lt $BS-ge $BS-characterp $BS-endp
                       $BS-logbitp $BS-istruct-typep $BS-base-char-p $BS-macptr-eql)))
 
 (defun ev2-boolean-form (cc op &rest args)
@@ -593,24 +615,22 @@
 (defev2 not (cc val) ;;x862-not
   (ev2-boolean-form cc '$BS-not (ev2-form val)))
 
-(defun ev2-compare (cc form1 form2)
-  `(,(ecase (ev2-cc-operand cc)
-       (:EQ '$BS-EQ)
-       (:NE '$BS-NE)
-       (:GT '$BS-GT)
-       (:LE '$BS-LE)
-       (:LT '$BS-LT)
-       (:GE '$BS-GE))
-    ,(ev2-form form1)
-    ,(ev2-form form2)))
-
-;; lots of constant folding here see x862-eq-test
+;; lots of constant folding opportunities here see x862-eq-test
 (defev2 (eq neq) (cc form1 form2)
-  (assert (member (ev2-cc-operand cc) '(:EQ :NE)))
-  (ev2-compare cc form1 form2))
+  (let ((form `($bs-eq ,(ev2-form form1) ,(ev2-form form2))))
+    (ecase (ev2-cc-operand cc)
+      (:EQ form)
+      (:NE `($bs-not ,form)))))
 
 (defev2 (numcmp short-float-compare double-float-compare %i<> %natural<>) (cc form1 form2) ;;x862-numcmp
-  (ev2-compare cc form1 form2))
+  (let ((forms (list (ev2-form form1) (ev2-form form2))))
+    (ecase (ev2-cc-operand cc)
+      (:EQ `($bs-= ,@forms))
+      (:NE `($bs-not ($bs-= ,@forms)))
+      (:GT `($bs-gt ,@forms))
+      (:LE `($bs-not ($bs-gt ,@forms)))
+      (:LT `($bs-lt ,@forms))
+      (:GE `($bs-not ($bs-lt ,@forms))))))
 
 (defev2 int>0-p (cc form)
   (assert (eq (ev2-cc-operand cc) :gt))
@@ -643,6 +663,37 @@
 (defev2-fn catch (tag form) $BS-CATCH)
 (defev2-fn throw (tag form) $BS-THROW)
 
+
+(defev2 local-go (tag) `($BS-GO ,(cadr tag)))
+
+(defev2 local-tagbody (taglist body) ;;x862-local-tagbody
+  (cond ((null taglist)
+         ;; this will err out trying to compile TAG-LABEL if there are any labels in it.
+         (ev2-progn (mapcar #'ev2-form body)))
+        (t
+         ;; a tag is (tag-sym inner-ref ref-count catch-var T bwd-p).  All of this is internal pass1
+         ;; stuff except bwd-p, which is for us, and it's true if this tag was every the target
+         ;; of a backward jump, i.e. an actual loop.   This was I think for explicit event checking.
+         ;; Anyway, (cadr tag) is modified by x862, so that means we can too..
+         (loop for tag in taglist
+           do (assert (null (cadr tag)))
+           do (setf (cadr tag) (incf *ev2-tags*)))
+         (let* ((remaining-tags (copy-list taglist)) ;; for debugging
+                (forms (loop for tag-or-expr in body
+                         collect (if (eq (acode-operator-sym tag-or-expr) 'tag-label)
+                                   (let ((tag (car (acode-operands tag-or-expr))))
+                                     (assert (memq tag remaining-tags))
+                                     (setq remaining-tags (delq tag remaining-tags))
+                                     (assert (cadr tag))
+                                     `($BS-LABEL ,(cadr tag)))
+                                   (ev2-form tag-or-expr)))))
+           (assert (null remaining-tags))
+           `($bs-tagbody ,@forms)))))
+
+
+;;  No more.  With alisp target, we can let the host lisp handle the refs.
+#+NON-LISP-TARGET
+(progn
 (defev2 local-tagbody (taglist body) ;;x862-local-tagbody
   ;; a tag is (tag-sym inner-ref ref-count catch-var T bwd-p).  All of this is internal pass1
   ;; stuff except bwd-p, which is for us, and it's true if this tag was every the target
@@ -701,11 +752,12 @@
         `($BS-local-tagbody ,codevec)
         `($BS-tagbody ,catch-tag-var ,codevec)))))
 
+
 (defev2 local-go (tag)
   (destructuring-bind (codevec form-index counter) (cadr tag)
     (incf (car counter))
     `($BS-GO ,(get-misc-vcell codevec) ,form-index)))
-
+)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; conses/uvectors
 
@@ -734,10 +786,10 @@
   (let* ((args (ev2-arglist-forms arglist))
          (subtag-arg (pop args))
          (subtag (acode-fixnum-form-p subtag-arg)))
-    `($BS-GVECTOR ,subtag ,@(mapcar #'ev2-form args))))
+    `($BS-UVECTOR ,subtag ,@(mapcar #'ev2-form args))))
 
 (defev2 vector (args)
-  `($BS-GVECTOR ,(nx-lookup-target-uvector-subtag :simple-vector) ,@(mapcar #'ev2-form args)))
+  `($BS-UVECTOR ,(nx-lookup-target-uvector-subtag :simple-vector) ,@(mapcar #'ev2-form args)))
 
 (defev2 %make-uvector (size subtag &optional (init nil init-p)) ;; x862-%alloc-misc
   (if init-p
@@ -774,12 +826,13 @@
 (defev2-fn general-aset2 (arr i j val) $BS-ASET2) ;; x862-general-aset2
 (defev2-fn general-aset3 (arr i j k val) $BS-ASET3) ;; really?
 
-
-(defev2-fn %scharcode (string index) $BS-%SCHARCODE) ;;x862-%scharcode
-(defev2-fn %sbchar (string index) $BS-%SBCHAR)
-(defev2-fn %set-sbchar (string index value) $BS-SET-%SBCHAR)
-(defev2-fn %set-scharcode (string index value) $BS-SET-SCHARCODE)
-
+(defev2 %scharcode (string index)
+  `($bs-char-code ($bs-uvref ,(ev2-form string) ,(ev2-form index))))
+(defev2 %set-scharcode (string index value)
+  `($bs-uvset ,(ev2-form string) ,(ev2-form index) ($bs-code-char ,(ev2-form value))))
+(defev2 %sbchar (string index) `($bs-uvref ,(ev2-form string) ,(ev2-form index)))
+(defev2 %set-sbchar (string index value)
+  `($bs-uvset ,(ev2-form string) ,(ev2-form index) ($bs-require-character ,(ev2-form value))))
 
 ;; this assumes the value is a lisp object, i.e. doesn't box it.
 (defev2-fn %fixnum-ref (address offset) $BS-FIXNUM-REF)
@@ -827,10 +880,11 @@
 (defev2-fn %ilsl (shift x) $BS-ILSL)
 (defev2-fn (%ilogior2 logior2) (x y) $BS-LOGIOR2)
 (defev2-fn (%ilogxor2 logxor2) (x y) $BS-LOGXOR2)
-(defev2-fn (logand2 %natural-logand) (x y) $BS-LOGAND2) ;; todo
-(defev2-fn %ilogand2 (x y) $BS-%ILOGAND2)
+(defev2-fn (logand2 %natural-logand %ilogand2) (x y) $BS-LOGAND2)
 
-(defev2-fn (%ilognot lognot) (x) $BS-LOGNOT)
+ ;; does %ilognot rely on truncating? (most-positive-fixnum)
+(defev2 (%ilognot lognot) (x) `($bs-sub2 ($bs-quote -1) ,(ev2-form x)))
+
 (defev2-fn logbitp (x y) $BS-LOGBITP)
 (defev2-fn %quo2 (x y) $BS-QUO2)
 (defev2-fn (ash fixnum-ash) (x y) $BS-ASH) ;; fixnum-ash might rely on truncating
@@ -1026,22 +1080,20 @@
 (defev2 %set-single-float (macptr offset val)
   `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) ,$ff-single-float ,(ev2-form val)))
 
-;;(mapcar #'foo '(6 8 4 12 10 22 21 11))
 (defev2 builtin-call (index arglist);; x862-builtin-call
-  ;; This is just an optimization to save space by having a subprim call the function
-  ;;;  ******TODO: get rid of the special opcodes for these
+  ;; I think this was just an optimization to save space by having a subprim call the function
   (let* ((args (ev2-arglist-forms arglist))
          (index-val (acode-fixnum-form-p index))
          (builtin (svref %builtin-functions% index-val))
-         (op (cdr (assoc builtin '((>-2 . $BS-BUILTIN-GT)
-                                   (<-2 . $BS-BUILTIN-LT)
-                                   (=-2 . $BS-BUILTIN-EQ)
-                                   (sequence-type . $BS-BUILTIN-SEQTYPE)
-                                   (eql . $BS-BUILTIN-EQL)
-                                   (ash . $BS-BUILTIN-ASH)
-                                   (%aset1 . $BS-BUILTIN-ASET1)
-                                   (%aref1 . $BS-BUILTIN-AREF1)
-                                   (length . $BS-BUILTIN-LENGTH))))))
+         (op (cdr (assoc builtin '((>-2 . $bs-gt)
+                                   (<-2 . $bs-lt)
+                                   (=-2 . $BS-=)
+                                   (sequence-type . $bs-seqtype)
+                                   (eql . $bs-eql)
+                                   (ash . $bs-ash)
+                                   (%aset1 . $bs-aset1)
+                                   (%aref1 . $bs-aref1)
+                                   (length . $bs-length))))))
     (assert op () "Unknown builtin ~s" builtin)
     `(,op ,@(mapcar #'ev2-form args))))
 
@@ -1083,7 +1135,6 @@
         `($BS-KERNEL-CALL ,(symbol-name (cadr (third address-form))) ,@arg-forms)
         (progn
           (unless (equal (car address-form) '$bs-symbol-value)
-            (FORMAT *TRACE-OUTPUT* "~&FF-CALL ~s" (ev2-form address))
-            (break "Different ff-call"))
+            (format *trace-output* "~&;;; *** Different FF-CALL ~s" address-form))
           `($BS-FF-CALL ,address-form ,@arg-forms))))))
 
