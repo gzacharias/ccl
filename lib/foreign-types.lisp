@@ -1352,6 +1352,15 @@ Which one name refers to depends on foreign-type-spec in the obvious manner."
                                 field-name
                                 (mapcar #'foreign-record-field-name fields)))))
 
+(defun %foreign-field-offset-form (type field-name)
+  (etypecase type
+    (foreign-record-type
+     (let* ((field (%find-foreign-record-type-field type field-name))
+            (bit-offset (foreign-record-field-offset field)))
+       `(values ,(floor bit-offset 8) ,(foreign-record-field-type field) ,bit-offset)))
+    (foreign-pointer-type
+     (%foreign-field-offset-form (foreign-pointer-type-to type) field-name))))
+
 (defun %foreign-access-form (base-form type bit-offset accessors)
   (if (null accessors)
     (invoke-foreign-type-method :extract-gen type base-form bit-offset)
