@@ -175,6 +175,7 @@
 	(cleanup-thread-tcr thread tcr))))
 
 (defun init-thread-from-tcr (tcr thread)
+  #-cvm-target
   (let* ((cs-area nil)
          (vs-area (%fixnum-ref tcr (- target::tcr.vs-area target::tcr-bias)))
          #-arm-target

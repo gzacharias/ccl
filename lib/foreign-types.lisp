@@ -1409,11 +1409,11 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
               (parsed parsed)
               (t (parse-foreign-type type)))))))
 
-(defun %foreign-type-or-record-size-form (type units accessors)
+(defun %foreign-type-or-record-size-form (type units &optional accessors)
   (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
     (return-from %foreign-type-or-record-size-form
-      (%deferred-foreign-size-form type units)))
-  (%foreign-type-or-record-size type units))
+      (%deferred-foreign-size-form type units accessors)))
+  (%foreign-type-or-record-size type units accessors))
 
 (defun %foreign-type-or-record-size (type &optional (units :bits) accessors)
   (let* ((info (%foreign-type-or-record type)))
@@ -1444,6 +1444,9 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
                                 (mapcar #'foreign-record-field-name fields)))))
 
 (defun %foreign-field-offset-form (type field-name)
+  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+    (return-from %foreign-field-offset-form
+      (%deferred-field-offset-form (foreign-record-type-name type) field-name)))
   (etypecase type
     (foreign-record-type
      (let* ((field (%find-foreign-record-type-field type field-name))
@@ -1481,7 +1484,7 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
   (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
     (return-from %foreign-array-access-form
       (%deferred-foreign-array-access-form base-form
-                                           :some-type
+                                           :dunno-to-get-type-name
                                            ;;; ****** TODO
                                            ;;;(foreign-record-type-name type)
                                            index-form)))
