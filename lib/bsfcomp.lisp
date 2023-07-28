@@ -8,8 +8,11 @@
     leaks
     core-files
     dominance
-    reg
-    backtrace-lds))
+    backtrace-lds
+    ;; compiler non-vm backends
+    VREG
+    VINSN
+    REG))
 
 ;; For testing, integrate back into general setup later
 (defparameter *modules-to-compile*
@@ -88,6 +91,7 @@
 
     SUBPRIMS
     ;X8664-ARCH
+    CVM-ARCH
     VREG
     VINSN
     REG
