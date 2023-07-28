@@ -125,7 +125,7 @@
     (ppc2             "ccl:bin;ppc2"             ("ccl:compiler;PPC;ppc2.lisp"))
     (x862             "ccl:bin;x862"             ("ccl:compiler;X86;x862.lisp"))
     (arm2             "ccl:bin;arm2"             ("ccl:compiler;ARM;arm2.lisp"))
-    (cvm2             "ccl:bin;cvm2"             ("ccl:compiler;CVM;bscompile.lisp"))
+    (cvm2             "ccl:bin;cvm2"             ("ccl:compiler;CVM;cvm2.lisp"))
     (ppc-lapmacros    "ccl:bin;ppc-lapmacros"    ("ccl:compiler;PPC;ppc-lapmacros.lisp"))
     (x86-lapmacros    "ccl:bin;x86-lapmacros"    ("ccl:compiler;X86;x86-lapmacros.lisp"))
     (arm-lapmacros    "ccl:bin;arm-lapmacros"    ("ccl:compiler;ARM;arm-lapmacros.lisp"))
