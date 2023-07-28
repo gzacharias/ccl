@@ -270,8 +270,8 @@
                  (logior (ash 1 arm64::fulltag-immheader-0)
                          (ash 1 arm64::fulltag-immheader-1)
                          (ash 1 arm64::fulltag-immheader-2)))
-        #+cvm-target
-        (ivector-typecode-p subtag)
+        #+cvm-target ;; subtag-bytes will typecheck
+         T
       (error "~s is not an ivector subtype." element-type))
     (let* ((size-in-octets (ccl::subtag-bytes subtag element-count)))
       (multiple-value-bind (vector pointer)

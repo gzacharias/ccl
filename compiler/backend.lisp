@@ -26,6 +26,7 @@
     (,platform-cpu-arm . :arm)
     (,platform-cpu-arm64 . :arm64)))
 
+(defconstant platform-cpu-cvm (ash 4 3))
 (defconstant platform-os-vxworks 0)
 (defconstant platform-os-linux 1)
 (defconstant platform-os-solaris 2)
