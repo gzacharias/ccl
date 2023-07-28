@@ -260,6 +260,8 @@ present and false otherwise. This variable shouldn't be set by user code.")
       (bin-load-provide "ARM-ARCH" "arm-arch")
       #+arm64-target
       (bin-load-provide "ARM64-ARCH" "arm64-arch")
+      #+cvm-target
+      (bin-load-provide "CVM-ARCH" "cvm-arch")
       (bin-load-provide "VREG" "vreg")
       
       #+ppc-target
@@ -291,6 +293,8 @@ present and false otherwise. This variable shouldn't be set by user code.")
       (provide "ARM2") 
       #+arm64-target
       (provide "ARM642") 
+      #+cvm-target
+      (provide "CVM2")
       (bin-load-provide "ACODE-REWRITE" "acode-rewrite")
      
       (l1-load-provide "NX" "nx")
