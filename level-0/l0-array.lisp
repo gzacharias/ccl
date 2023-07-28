@@ -853,6 +853,33 @@ minimum number of elements to add if it must be extended."
     (declare (fixnum ivector-class element-bit-shift total-bits))
     (ash (the fixnum (+ 7 total-bits)) -3)))
 
+#+cvm-target
+(eval-when (:compile-toplevel :execute)
+  (defconstant *element-subtag-shift*
+    (let ((arr (make-array 256 :element-type '(unsigned-byte 4) :initial-element #xF)))
+      (setf (aref arr cvm::subtag-bit-vector) 0)
+      (setf (aref arr cvm::subtag-signed-8-bit-vector) 3)
+      (setf (aref arr cvm::subtag-unsigned-8-bit-vector) 3)
+      (setf (aref arr cvm::subtag-signed-16-bit-vector) 4)
+      (setf (aref arr cvm::subtag-unsigned-16-bit-vector) 4)
+      (loop for i from 0 below #x100 by #x10
+        do (setf (aref arr (+ i cvm::ivector-subtags-32-bit)) 5)
+        do (setf (aref arr (+ i cvm::ivector-subtags-64-bit)) 6))
+      arr)))
+    
+#+cvm-target
+(defun subtag-bytes (subtag element-count)
+  (declare (fixnum subtag element-count))
+  (if (eql subtag cvm::subtag-complex-double-float-vector)
+    ;; There's a 64-bit pad at the beginning of the vector.
+    (+ 8 (ash element-count 4))
+    (let* ((element-bit-shift (aref *element-subtag-shift* subtag))
+           (total-bits (if (eq element-bit-shift #xF)
+                         (error "Not an ivector subtag: ~s" subtag)
+                         (ash element-count element-bit-shift))))
+    (declare (fixnum element-bit-shift total-bits))
+    (ash (the fixnum (+ 7 total-bits)) -3))))
+
 (defun element-type-subtype (type)
   "Convert element type specifier to internal array subtype code"
   (ctype-subtype (specifier-type type)))
