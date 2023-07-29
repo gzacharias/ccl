@@ -268,6 +268,11 @@
   imagpart
 )
 
+(defconstant double-float.val-low-cell 0)
+(defconstant double-float.val-high-cell 1)
+;(defconstant double-float.element-count 2)
+
+
 (defun cvm-array-type-name-from-ctype (ctype)
   (when (typep ctype 'ccl::array-ctype)
     (let* ((element-type (ccl::array-ctype-element-type ctype)))

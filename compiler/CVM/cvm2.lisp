@@ -1,5 +1,15 @@
 (in-package :ccl)
 
+
+(eval-when (:compile-toplevel :execute)
+  (require "NXENV")
+  ;(require "CVMENV")
+  )
+
+(eval-when (:load-toplevel :execute :compile-toplevel)
+  (require "CVM-BACKEND"))
+
+
 ;  (trace  :before (lambda (fn afunc &rest flags) (assert (eq fn 'x862-compile)) flags (setq *last-afunc afunc)) x862-compile)
 ;; TODO:  pass the "vreg" arg in, it says whether it's being evaluated for a vlaue, and it's really useful
 ;;(fcomp-file src (or compile-file-original-truename (namestring orig-src)) compile-file-original-buffer-offset lexenv)

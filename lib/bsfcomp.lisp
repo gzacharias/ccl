@@ -185,10 +185,11 @@
 
 (defun test-vm (&optional force)
   ;; Don't really understand the intended way of doing this.  Any attempt to
-  ;; use a target ends up calling FIND-BACKEND, but there is no cvm backend until
+  ;; use a new target ends up calling FIND-BACKEND, but there is no cvm backend until
   ;; these files are loaded, so just do it.
-  (load "ccl:compiler;cvm;cvm-arch.lisp")
-  (load "ccl:compiler;cvm;cvm-backend.lisp")
+  (load "ccl:compiler;cvm;cvm-arch.lisp") ;; on cvm, this gets loaded by l1-boot-2.lisp
+  ;; this normally gets loaded by loading CVM2.lisp, after loading above.  Have to compile it so require can find it.
+  (compile-file "ccl:compiler;cvm;cvm-backend.lisp" :output-file "ccl:bin;cvm-backend" :verbose t :load t)
 
   (let ((*warn-if-redefine-kernel* nil))
     (if (eq force :full)
