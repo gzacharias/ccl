@@ -311,6 +311,9 @@ present and false otherwise. This variable shouldn't be set by user code.")
       #+arm64-target
       (bin-load "arm642")
 
+      #+cvm-target
+      (bin-load "cvm2")
+
       (bin-load-provide "LEVEL-2" "level-2")
       (bin-load-provide "MACROS" "macros")
       (bin-load-provide "SETF" "setf")
