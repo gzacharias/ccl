@@ -61,7 +61,7 @@
 
 (defparameter *cvm-uvector-subtags* nil)
 (defparameter *cvm-gvector-types* nil)
-#+hemlock (hemlock::defindent "define-subtags" 1)
+
 (defmacro define-subtags (code &rest names)
   `(progn
      ,@(loop for index = #x10 then (+ index #x10)

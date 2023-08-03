@@ -44,18 +44,11 @@
               (push ,var *known-backends*))))
      ',var))
 
-;;; SO, x8664 only sets up the ftd when #-x8664, i.e. when it is being compiled for some other target, i.e. when it is being cross
-;;;  compiled and then it will, at load time on this other target, set the ftd.  That won't actually work because foreign-types will not have
-;;;  been loaded yet, so this was untested.
-
-;;; Anyway, foreign-types, when loaded, will defvar  *host-ftd*, and we need to sneak in there.  That will happen when compiling for CVM
-;;   
-
 #+(or darwincvm-target (not cvm-target))
 (def-known-backend *darwincvm-backend*
   (make-backend :lookup-opcode 'unknown ;;#'arm::lookup-arm-instruction
                 :lookup-macro 'unknown ;; #'false
-                :lap-opcodes #() ;; not referrenced - can't use 'unknown because of type decl
+                :lap-opcodes #() ;; not referrenced - can't use 'unknown because of type decl on slot
                 :define-vinsn 'unknown ;;'%define-arm-vinsn
                 :platform-syscall-mask 'unknown;; (logior platform-os-darwin platform-cpu-arm)                
                 :p2-dispatch #(unknown) ;; not referenced - can't use 'unknown because of tyep decl on slot
@@ -66,7 +59,7 @@
                 '(:cvm :cvm-target :darwin-target :darwincvm-target
                        ;; Who wants to know about endianness?
                        :64-bit-target :little-endian-target)
-                :target-fasl-pathname (make-pathname :type "cvmfsl")
+                :target-fasl-pathname (make-pathname :type "cvmsrc")
                 :target-platform (logior platform-word-size-64
                                          platform-cpu-cvm
                                          platform-os-darwin)
@@ -90,12 +83,7 @@
                                          :signed-char t
                                          :struct-by-value t
                                          :prepend-underscores nil
-                                         :defer-to-runtime t
-                                         ;; IS this still needed?  Should just use defer-to-runtime.
-                                         :type-lookup 'cvm-ffi-type
-                                         :function-lookup 'cvm-ffi-function
-                                         :call-expander 'cvm-ffi-expander
-                                         )
+                                         :defer-to-runtime t)
                        :ff-call-expand-function 'cvm-expand-ff-call
                        :ff-call-struct-return-by-implicit-arg-function 'unknown ;; (Intern ...)
                        :callback-bindings-function 'unknown ;; (intern ..
@@ -145,7 +133,6 @@
 ;; To be defined in the host.
 (declaim (ftype function
                 cvm-%kernel-import
-                cvm-ffi-function
                 cvm-external-call
                 cvm-access-foreign-field
                 setf-cvm-access-foreign-field
@@ -204,24 +191,6 @@
         collect `(setf ,(%deferred-foreign-access-form ptr record-name 0 (list key))
                        ,valform)))))
 
-;;; Below was first attempt, might want to back out of some of this:
-
-;; totally faking it, just  so can read everything in.  Will have to look
-;; and see what mess gets generated.
-(defun cvm-ffi-type (string)
-  (declare (ignore string))
-  (make-foreign-pointer-type))
-;(%foreign-type-or-record type-name)
-;; SYM will get a macro definition of %external-call-expander
-;; so that calls to it `(external-call ,entry-name ,stuff-ufrom-args-and-result)
-
-(defun cvm-ffi-function (sym)
-  (declare (ignore sym))
-  (make-external-function-definition))
-
-(defun cvm-ffi-expander (name &rest args)
-  `(cvm-external-call ',name ,@args))
-
 ;; x8664::expand-ff-call
 (defun cvm-expand-ff-call (callform args)
   ;;(error "who calls this")
@@ -242,12 +211,6 @@
 (define-compiler-macro %kernel-import (offset)
   (when (eq *target-backend* *cvm-backend*)
     (break "who still calls this? ~s" offset)))
-
-
-
-
-
-
 
 ;;(setf (gethash :array (ftd-translators *cvm-ftd*))
 
