@@ -148,6 +148,7 @@
     pathnames
     time
     compile-ccl
+    systems
     arglist
     edit-callers
     describe
@@ -175,12 +176,9 @@
     NUMBER-CASE-MACRO
     arch
     PRINT-DB
+    PREPARE-MCL-ENVIRONMENT
     ))
 
-;; Can't use backend-target-fasl-pathname mechanism, because it interferes with
-;; the VM attempting to load the files as source in the same lisp, because
-;; fasl-file-p checks all known backends!
-(defvar *.cvm-output-pathname* #P".cvmsrc")
 
 
 (defun test-vm (&optional force)
@@ -238,13 +236,13 @@
         ;; TODO: Maybe should make a file, LEVEL-0.LISP that just sets *level-0-files*, which can then be loaded,
         ;; so don't rely on contents of directories..
         (ensure-directories-exist "ccl:cvmsrcs;level-0;")
-        (let ((outpath (merge-pathnames "ccl:cvmsrcs;level-0;" *.cvm-output-pathname*)))
+        (let ((outpath (merge-pathnames "ccl:cvmsrcs;level-0;" (backend-target-fasl-pathname *cvm-backend*))))
           (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
           (dolist (dir '("ccl:level-0;" "ccl:level-0;CVM;"))
             (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
               do (fcomp src outpath))))
         (ensure-directories-exist "ccl:cvmsrcs;")
-        (let ((outpath (merge-pathnames "ccl:cvmsrcs;" *.cvm-output-pathname*)))
+        (let ((outpath (merge-pathnames "ccl:cvmsrcs;" (backend-target-fasl-pathname *cvm-backend*))))
           (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
           (loop for module in *modules-to-compile*
             if (member module *modules-not-for-cvm*)
@@ -294,7 +292,7 @@
           (with-global-optimization-settings ()
             (setf (current-directory) "ccl:")
             (loop for file in files
-              as output-file = (merge-pathnames *.cvm-output-pathname* file)
+              as output-file = (merge-pathnames (backend-target-fasl-pathname *cvm-backend*) file)
               ;; Compile file complains if it's not a fasl file.
               when (probe-file output-file) do (delete-file output-file)
               do (compile-file file
@@ -345,9 +343,7 @@
 (defun ev2-output-compiled-file (toplevel-forms hash output-file)
   ;;(assert (equalp (pathname-type output-file) (pathname-type (bscompile-fasl))))
   (with-open-file (outf output-file :direction :output :if-exists :supersede)
-    (format outf "~&(cl:in-package :ccl-vm)~2%~
-                    (SETQ *LOADER-TABLE* (MAKE-ARRAY ~d.))~2%"
-            (hash-table-count hash))
+    (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (hash-table-count hash))
     (let* ((*ev2-fcomp-hash* hash)
            (*ev2-fcomp-eref* -1)
            (*ev2-bsquote* nil))
@@ -390,7 +386,7 @@
 
 (defun ev2-maker-form (obj)
   (let ((info (gethash obj *ev2-fcomp-hash*)))
-    (cond ((fixnump info) `(aref *loader-table* ,info))
+    (cond ((fixnump info) `($fs-ref ,info))
           ((eq info t)
            (let ((store-index (incf *ev2-fcomp-eref*)))
              (when (typep obj '(or (signed-byte 60) character boolean immediate))  ;; don't store immediates
@@ -433,7 +429,7 @@
         (t (error "invalid constant ref ~s" obj))))
 
 (defun ev2-maybe-store (form store-index)
-  (if store-index `(setf (aref *loader-table* ,store-index) ,form) form))
+  (if store-index `($fs-set ,store-index ,form) form))
 
 (defun ev2-string-maker (string store-index)
   (check-type string simple-string)
