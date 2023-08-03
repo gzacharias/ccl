@@ -845,12 +845,36 @@ satisfy the optional predicate PREDICATE."
       (setf (interface-dir-functions-interface-db-file dir)
 	    (open-interface-db-pathname "functions.cdb" dir))))
 
+#-CVM-TARGET
+(defun interface-constant-value (ftd sym)
+  (do-interface-dirs (d ftd)
+    (let* ((v (db-lookup-constant (db-constants d) sym)))
+      (when v (return v)))))
+
+#-CVM-TARGET
+(defun interface-var-type (ftd string)
+  (with-cstrs ((cstring string))
+    (do-interface-dirs (d ftd)
+      (let* ((vars (db-vars d)))
+        (when vars
+          (rletZ ((value :cdb-datum)
+                  (key :cdb-datum))
+            (setf (pref key :cdb-datum.data) cstring
+                  (pref key :cdb-datum.size) (length string)
+                  (pref value :cdb-datum.data) (%null-ptr)
+                  (pref value :cdb-datum.size) 0)
+            (cdb-get vars key value)
+            (let* ((vartype (extract-db-type value ftd)))
+              (when vartype (return vartype)))))))))
+
+#-CVM-TARGET
+(defun interface-function (ftd sym)
+  (do-interface-dirs (d ftd)
+    (let* ((f (db-lookup-function (db-functions d) sym)))
+      (when f (return f)))))
+
 (defun load-os-constant (sym &optional query)
-  (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
-    (return-from load-os-constant nil))
-  (let ((val (do-interface-dirs (d)
-		    (let* ((v (db-lookup-constant (db-constants d) sym)))
-		      (when v (return v))))))
+  (let ((val (interface-constant-value *target-ftd* sym)))
     (if query
       (not (null val))
       (if val
@@ -867,7 +891,7 @@ satisfy the optional predicate PREDICATE."
                    (string name)))
          (fv (gethash string (fvs))))
     (unless fv
-        (let* ((type (load-target-ftd-type string)))
+      (let* ((type (interface-var-type ftd string)))
           (when type
             (setq fv (%cons-foreign-variable string type))
             (resolve-foreign-variable fv nil)
@@ -876,25 +900,8 @@ satisfy the optional predicate PREDICATE."
       (not (null fv))
       (or fv (error "Foreign variable ~s not found" string)))))
 
-(defun load-target-ftd-type (string)
-  (let ((lookup (getf (ftd-attributes *target-ftd*) :type-lookup)))
-    (if lookup
-      (funcall lookup string)
-      (with-cstrs ((cstring string))
-        (do-interface-dirs (d)
-          (let* ((vars (db-vars d)))
-            (when vars
-              (rletZ ((value :cdb-datum)
-                      (key :cdb-datum))
-                (setf (pref key :cdb-datum.data) cstring
-                      (pref key :cdb-datum.size) (length string)
-                      (pref value :cdb-datum.data) (%null-ptr)
-                      (pref value :cdb-datum.size) 0)
-                (cdb-get vars key value)
-                (let* ((vartype (extract-db-type value *target-ftd*)))
-                  (when vartype (return vartype)))))))))))
 
-
+;;; This is used in OBJC bridge only, not needed for main sources
 (set-dispatch-macro-character 
  #\# #\&
  (qlfun |#&-reader| (stream char arg)
@@ -1028,14 +1035,13 @@ satisfy the optional predicate PREDICATE."
       (when info (return info)))))
 
 (defun load-external-function (sym query)
-  (let* ((def (or (let ((lookup (getf (ftd-attributes *target-ftd*) :function-lookup)))
-                    (if lookup
-                      (funcall lookup sym)
-                      (do-interface-dirs (d)
-                        (let* ((f (db-lookup-function (db-functions d) sym)))
-                          (when f (return f))))))
-                  (unless query
-                    (error "Foreign function not found: ~s" sym)))))
+  (let* ((def (if (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+                (if query
+                  (error "external function query not supported for this target")
+                  `(deferred-function-definition ,sym))
+                (or (interface-function *target-ftd* sym)
+                    (unless query
+                      (error "Foreign function not found: ~s" sym))))))
     (if query
       (not (null def))
       (progn
@@ -1077,6 +1083,11 @@ satisfy the optional predicate PREDICATE."
             (unless *read-suppress*
               (etypecase sym
                 (symbol
+                 (if (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+                   (values (if query
+                             (error "#$? not supported for this target") ;; not needed
+                             `(cvm-os-constant ',sym))
+                           source)
                  (let* ((const (load-os-constant sym t)))
                    (if query
                      (values const source)
@@ -1093,9 +1104,7 @@ satisfy the optional predicate PREDICATE."
                                   (load-os-constant sym)))
                                (1 (makunbound sym) (load-os-constant sym))))
                            (values sym source))
-                         (if (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
-                             (values `(cvm-os-constant ',sym) source)
-                           (let* ((fv (%load-var sym nil)))
+                         (let* ((fv (%load-var sym nil)))
                              (values
                               (%foreign-access-form `(%reference-external-entry-point (load-time-value ,fv))
                                                     (fv.type fv)

@@ -44,14 +44,14 @@
   ;; some advantage in treating those integers as signed (they might
   ;; be more likely to be fixnums, for instance), so ensure that they
   ;; aren't.
-  #+(or x86-target arm-target)
+  #+(or x86-target arm-target cvm-target)
   (%setf-macptr addr (%int-to-ptr
                       (if (< entry 0)
                         (logand entry (1- (ash 1 target::nbits-in-word)))
                         entry)))
   #+arm64-target
   (%setf-macptr addr entry)
-  #-(or ppc-target x86-target arm-target arm64-target) (dbg "Fix entry->addr"))
+  #-(or ppc-target x86-target arm-target arm64-target cvm-target) (dbg "Fix entry->addr"))
 
 
 

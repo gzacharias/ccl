@@ -1472,6 +1472,7 @@ are running on, or NIL if we can't find any useful information."
                      #+32-bit-target 7)))
         (t 0)))
 
+#-CVM-TARGET (progn
 (defun kernel-global-address (global)
   (check-type global symbol)
   ;; arm64: statics (and therefore nil) have no fixed VA; the canonical
@@ -1509,7 +1510,7 @@ are running on, or NIL if we can't find any useful information."
 
 (defun reserved-static-conses ()
   (%fixnum-ref-natural (%get-kernel-global static-cons-area) target::area.ndnodes))
-	
+) ;; #-CVM-TARGET	
 
 (defparameter *weak-gc-method-names*
   '((:traditional . 0)
