@@ -382,6 +382,7 @@ present and false otherwise. This variable shouldn't be set by user code.")
 
       (bin-load-provide "DB-IO" "db-io")
 
+      #-cvm-target ;; objc stuff.
       (canonicalize-foreign-type-ordinals *host-ftd*)
       
       (bin-load-provide "CASE-ERROR" "case-error")

@@ -3410,9 +3410,14 @@
 		     (:socket
 		      #+linux-target nominal
 		      #-linux-target
-		      (int-getsockopt fd #$SOL_SOCKET
-				      #+solaris-target #$SO_SNDBUF
-				      #-solaris-target #$SO_SNDLOWAT))
+                      (rlet ((valptr :signed) (vallen :signed 4))
+                        (let* ((err (#_getsockopt fd #$SOL_SOCKET
+                                                  #+solaris-target #$SO_SNDBUF
+                                                  #-solaris-target #$SO_SNDLOWAT
+                                                  valptr vallen)))
+                          (if (and (eql 0 err) (eql 4 (pref vallen :signed)))
+                            (pref valptr :signed)
+                            nominal))))
 		     ((:character-special :tty)
 		      (#_fpathconf fd #$_PC_MAX_INPUT))
 		     (t nominal))))
@@ -4374,8 +4379,10 @@
   (and stream
        (eq (basic-stream.wrapper stream)
            *string-output-stream-class-wrapper*)
+       #-cvm-target
        (let* ((loc (%tcr-binding-location (%current-tcr) '%string-output-stream-ioblocks%)))
-         (and loc (%fixnum-ref loc)))))
+         (and loc (%fixnum-ref loc)))
+       #+cvm-target %string-output-stream-ioblocks%))
 
 
 (defun create-string-output-stream-ioblock (stream string write-char-function write-string-function)

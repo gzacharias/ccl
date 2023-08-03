@@ -108,7 +108,9 @@
                (:androidarm "ccl:android-headers;")))
            (pkg-name () (ftd-interface-package-name *target-ftd*)))
              
-(defvar *host-ftd* (make-ftd
+(defvar *host-ftd*
+  #+cvm-target (make-cvm-ftd)
+  #-cvm-target (make-ftd
                     :interface-db-directory (headers-dir)
                     :interface-package-name (pkg-name)
                     :attributes
@@ -1560,9 +1562,10 @@ result-type-specifer is :VOID or NIL"
 
 (defun %external-call-expander (whole env)
   (declare (ignore env))
-  (let ((expander (getf (ftd-attributes *target-ftd*) :call-expander)))
-    (when expander (return-from %external-call-expander (apply expander whole))))
   (destructuring-bind (name &rest args) whole
+    (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
+      (return-from %external-call-expander
+        `(cvm-external-call ',name ,@args)))
     (collect ((call))
       (let* ((info (or (gethash name (ftd-external-function-definitions
                                       *target-ftd*))

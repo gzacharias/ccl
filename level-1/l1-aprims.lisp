@@ -3683,7 +3683,8 @@ are rounded up to a multiple of 64Kbytes."
 
 
 ;; The read-time *target-backend* is the host backend - file compiler doesn't bind it.
-;; only compile-named-function binds it..  Plus we set it up ahead of time
+;; only compile-named-function binds it.  So this actually defines the host package
+;; in the target!
 #-CVM-TARGET
 (defpackage #.(ftd-interface-package-name
                (backend-target-foreign-type-data *target-backend*))
