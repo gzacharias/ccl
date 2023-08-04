@@ -84,15 +84,15 @@
             ; Can't lose now: symbols are all directly present in package.
             ; Ensure that they're all external; do so with interrupts disabled
             (without-interrupts
-             (let* ((etab (pkg.etab package))
-                    (ivec (car (pkg.itab package))))
+             (let* ((etab (pkg.etab package)))
                (dolist (s sym-or-syms t)
                  (multiple-value-bind (foundsym foundp internal-offset)
                                       (%findsym (symbol-name s) package)
                    (when (eq foundp :internal)
-                     (setf (%svref ivec internal-offset) (package-deleted-marker))
+                     (%htab-remove-symbol foundsym (pkg.itab package) internal-offset)
                      (let* ((pname (symbol-name foundsym)))
                        (%htab-add-symbol foundsym etab (nth-value 2 (%get-htab-symbol pname (length pname) etab)))))))))))))))
+
 (defun check-export-conflicts (symbols package)
   (let* ((conflicts nil))
     (with-package-lock (package)
@@ -356,7 +356,7 @@ value of the variable CCL:*MAKE-PACKAGE-USE-DEFAULTS*."
       ;; Now remove the symbol from package; if package was its home
       ;; package, set its package to NIL.  If we get here, the "table"
       ;; and "index" values returned above are still valid.
-      (%svset (car table) index (package-deleted-marker))
+      (%htab-remove-symbol foundsym table index)
       (when (eq (symbol-package symbol) package)
         (%set-symbol-package symbol nil))
       t)))
@@ -440,17 +440,8 @@ value of the variable CCL:*MAKE-PACKAGE-USE-DEFAULTS*."
              :symbol-name (symbol-name sym)
              :package package))
     (when (eq foundp :external)
-      (let* ((evec (car (pkg.etab package)))
-             (itab (pkg.itab package))
-             (ivec (car itab))
-             (icount&limit (cdr itab)))
-        (declare (type cons itab icount&limit))
-        (setf (svref evec external-offset) (package-deleted-marker))
-        (setf (svref ivec internal-offset) (%symbol->symptr foundsym))
-        (if (eql (setf (car icount&limit)
-                       (the fixnum (1+ (the fixnum (car icount&limit)))))
-                 (the fixnum (cdr icount&limit)))
-          (%resize-htab itab)))))
+      (%htab-remove-symbol foundsym (pkg.etab package) external-offset)
+      (%htab-add-symbol foundsym (pkg.itab package) internal-offset)))
   nil)
 
 ;;; Both args must be packages.
@@ -655,25 +646,24 @@ value of the variable CCL:*MAKE-PACKAGE-USE-DEFAULTS*."
        actual)))
   (setf-package-%local-nicknames nil package)
   (setf (pkg.names package) nil)
-  (let* ((ivec (car (pkg.itab package)))
-         (evec (car (pkg.etab package)))
-         (deleted (package-deleted-marker)))
+  (let* ((itab (pkg.itab package))
+         (ivec (car itab))
+         (etab (pkg.etab package))
+         (evec (car etab)))
     (dotimes (i (the fixnum (length ivec)))
       (let* ((sym (%svref ivec i)))
-        (setf (%svref ivec i) deleted)          ; in case it's in STATIC space
         (when (symbolp sym)
+          (%htab-remove-symbol sym (pkg.itab package) i)     ; in case it's in STATIC space
           (if (eq (symbol-package sym) package)
             (%set-symbol-package sym nil)))))
     (dotimes (i (the fixnum (length evec)))
       (let* ((sym (%svref evec i)))
-        (setf (%svref evec i) deleted)          ; in case it's in STATIC space
         (when (symbolp sym)
+          (%htab-remove-symbol sym (pkg.etab package) i)     ; in case it's in STATIC space
           (if (eq (symbol-package sym) package)
-            (%set-symbol-package sym nil))))))
-  (let ((itab (pkg.itab package)) (etab (pkg.etab package)) (v '#(nil nil nil)))
-    (%rplaca itab v) (%rplaca etab v)
-    (%rplaca (%cdr itab) 0) (%rplaca (%cdr etab) 0)
-    (%rplacd (%cdr itab) #x4000) (%rplacd (%cdr etab) #x4000))
+            (%set-symbol-package sym nil)))))
+    (%initialize-htab itab 0)
+    (%initialize-htab etab 0))
   t)
 
 (defun %find-package-symbol (string package &optional (len (length string)))
