@@ -1131,21 +1131,6 @@
               (when found-p
                 (return (values sym :inherited internal-offset external-offset))))))))))
           
-(defun %export-symbol (sym package)
-  (let* ((name (symbol-name sym))
-         (len (length name)))
-    (multiple-value-bind (found-p foundsym internal-offset)
-                         (%get-htab-symbol name len (pkg.itab package))
-      (when found-p
-        (assert (eq sym foundsym))
-        (setf (%svref (htvec (pkg.itab package)) internal-offset) (package-deleted-marker))))
-    (multiple-value-bind (found-p foundsym external-offset)
-                         (%get-htab-symbol name len (pkg.etab package))
-      (if found-p
-        (assert (eq foundsym sym))
-        (%htab-add-symbol sym (pkg.etab package) external-offset)))))
-
-
 (defun %htab-add-symbol (symbol htab idx)
   (declare (optimize (speed 3) (safety 0)))
   (setf (svref (htvec htab) idx) (%symbol->symptr symbol))
