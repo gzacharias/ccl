@@ -1131,6 +1131,10 @@
               (when found-p
                 (return (values sym :inherited internal-offset external-offset))))))))))
           
+(defun %htab-remove-symbol (symbol htab idx)
+  (declare (ignore symbol))
+  (setf (svref (htvec htab) idx) (package-deleted-marker)))
+
 (defun %htab-add-symbol (symbol htab idx)
   (declare (optimize (speed 3) (safety 0)))
   (setf (svref (htvec htab) idx) (%symbol->symptr symbol))

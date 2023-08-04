@@ -586,7 +586,7 @@ value of the variable CCL:*MAKE-PACKAGE-USE-DEFAULTS*."
            (progn                       ; Delete conflicting symbol
              (if (eq (symbol-package othersym) package)
                (%set-symbol-package othersym nil))
-             (setf (%svref (car htab) offset) (package-deleted-marker))
+             (%htab-remove-symbol othersym htab offset)
              (setf (pkg.shadowed package) (delete othersym (pkg.shadowed package) :test #'eq)))))
        (if need-add                   ; No symbols with same pname; intern & shadow
          (multiple-value-bind (xsym foundp internal-offset external-offset) 
