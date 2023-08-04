@@ -1015,7 +1015,7 @@
            (declare (ignore ignore))
            (if found-int                ; This shouldn't happen.
              (progn
-               (setf (%svref (car itab) int-offset) (%unbound-marker-8))
+               (%htab-remove-symbol symbol itab int-offset)
                (%htab-add-symbol symbol etab ext-offset))
              (unless found-ext
                (%add-symbol name pkg int-offset ext-offset t)))))))))
