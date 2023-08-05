@@ -170,8 +170,7 @@
     (db-io            "ccl:bin;db-io"            ("ccl:lib;db-io.lisp"))
     (hash             "ccl:bin;hash"             ("ccl:lib;hash.lisp"))
     (nfcomp           "ccl:bin;nfcomp"           ("ccl:lib;nfcomp.lisp"))
-    ;;; * FOR NOW
-    (bsfcomp          "ccl:bin;bsfcomp"          ("ccl:..;cvm;ccl-target;bsfcomp.lisp")) ;;;******
+    (cvm-fcomp        "ccl:bin;bsfcomp"          ("ccl:..;cvm;ccl-target;bsfcomp.lisp")) ;;;****** MOVE IT. AND RENAME IT!!!
     (lists            "ccl:bin;lists"            ("ccl:lib;lists.lisp"))
     (chars            "ccl:bin;chars"            ("ccl:lib;chars.lisp"))
     (streams          "ccl:bin;streams"          ("ccl:lib;streams.lisp"))

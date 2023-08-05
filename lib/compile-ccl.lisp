@@ -221,7 +221,8 @@
 	  (case target
 	    ((:ppc32 :ppc64) '(ppc-backtrace ppc-disassemble))
             ((:x8632 :x8664) '(x86-backtrace x86-disassemble x86-watch))
-            (:arm '(arm-backtrace arm-disassemble)))))
+            (:arm '(arm-backtrace arm-disassemble))
+            (:cvm '(cvm-fcomp)))))
 	  
 
 (defun target-lib-modules (&optional (backend-name
