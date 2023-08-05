@@ -1,256 +1,76 @@
 (in-package :ccl)
 
 (defparameter *modules-not-for-cvm*
-  '(;l1-lisp-threads l1-processes l1-sockets    ;sockets
-    ;; l1-cl-package
-    edit-callers
+  '(edit-callers
     cover
     leaks
     core-files
     dominance
-    backtrace-lds
-    ;; compiler non-vm backends
-    VREG
-    VINSN
-    REG))
+    backtrace-lds ;; either make this load, or get rid of backtrace as well.
+    vreg
+    vinsn
+    reg))
 
-;; For testing, integrate back into general setup later
-(defparameter *modules-to-compile*
-  '(LEVEL-1
-    L1-CL-PACKAGE
-    L1-UTILS
-    L1-INIT
-    L1-SYMHASH
-    L1-NUMBERS
-    L1-APRIMS
-    ;X86-CALLBACK-SUPPORT
-    L1-CALLBACKS
-    L1-SORT
-    
-    lists  ;; lib
-
-    sequences  ;; lib
-
-
-    L1-DCODE
-
-    L1-CLOS-BOOT
-    hash ;; lib
-    
-    L1-CLOS
-
-    defstruct;; lib
-    dll-node ;;lib
-    
-    L1-UNICODE
-    L1-STREAMS
-
-
-    LINUX-FILES
-    chars ;;lib
-    
-    L1-FILES
-    ;;(provide "SEQUENCES")
-    ;;(provide "DEFSTRUCT")
-    ;;(provide "CHARS")
-    ;;(provide "LISTS")
-    ;;(provide "DLL-NODE")
-    
-    L1-TYPESYS
-    SYSUTILS
-
-
-    ;;X86-THREADS-UTILS
-    L1-LISP-THREADS
-    L1-APPLICATION
-    L1-PROCESSES
-    L1-IO
-    L1-READER
-    L1-READLOOP
-    L1-READLOOP-LDS
-    L1-ERROR-SYSTEM
-    L1-EVENTS
-    ;X86-TRAP-SUPPORT
-    
-    
-    L1-FORMAT
-    L1-SYSIO
-    L1-PATHNAMES
-    L1-BOOT-LDS
-    L1-BOOT-1
-    
-    
-    L1-BOOT-2  ;; defs stuff but also loads:
-    ;X86-ERROR-SIGNAL
-    L1-ERROR-SIGNAL
-    L1-SOCKETS
-    
-    ;; loads and provides these
-    SORT
-    NUMBERS
-
-    SUBPRIMS
-    ;X8664-ARCH
-    CVM-ARCH
-    VREG
-    VINSN
-    REG
-
-    BACKEND
-    NX2
-
-    ; (PROVIDE X862)
-    ACODE-REWRITE
-    NX
-
-    ;X862
-    CVM2
-
-    level-2
-    macros
-    setf
-    setf-runtime
-    format
-    streams
-    optimizers
-    defstruct-macros
-    defstruct-lds
-    nfcomp ;; we need the front end.
-    BSFCOMP
-    backquote
-    backtrace-lds
-    backtrace
-    read
-    arrays-fry
-    apropos
-    source-files
-
-    ;X86-DISASSEMBLE
-    ;X86-LAPMACROS
-    ;x86-watch
-    foreign-types
-    ;;;; (install-standard-foreign-types *host-ftd*)
-    ;FFI-DARWINX8664
-    
-    ;; Knock wood: all standard reader macros and no non-standard
-    ;; reader macros are defined at this point.
-    ;;;; (setq *readtable* (copy-readtable *readtable*))
-    
-    db-io
-    ;;;; (canonicalize-foreign-type-ordinals *host-ftd*)
-    
-    case-error
-    ENCAPSULATE
-    METHOD-COMBINATION
-    misc
-    pprint
-    dumplisp
-    pathnames
-    time
-    compile-ccl
-    systems
-    arglist
-    edit-callers
-    describe
-    swink
-    cover
-    leaks
-    core-files
-    dominance
-    swank-loader
-    remote-lisp
-    mcl-compat
-    loop
-    ccl-export-syms
-    version
-    jp-encode
-    cn-encode
-    lispequ
-    sockets
-    L1-BOOT-3
-
-    CVM-BACKEND
-    nxenv
-    HASHENV
-    NUMBER-MACROS
-    NUMBER-CASE-MACRO
-    arch
-    PRINT-DB
-    PREPARE-MCL-ENVIRONMENT
-    ))
-
-
-
-(defun test-vm (&optional force)
-  ;; Don't really understand the intended way of doing this.  Any attempt to
-  ;; use a new target ends up calling FIND-BACKEND, but there is no cvm backend until
-  ;; these files are loaded, so just do it.
-  (load "ccl:compiler;cvm;cvm-arch.lisp") ;; on cvm, this gets loaded by l1-boot-2.lisp
-  ;; this normally gets loaded by loading CVM2.lisp, after loading above.  Have to compile it so require can find it.
+(defun build-cvm (&optional force)
+  (load "ccl:compiler;cvm;cvm-arch")
+  ;; this gets required by loading cvm2.lisp.  Have to compile it so require can find it.
   (compile-file "ccl:compiler;cvm;cvm-backend.lisp" :output-file "ccl:bin;cvm-backend" :verbose t :load t)
-
+  ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
   (let ((*warn-if-redefine-kernel* nil))
-    (if (eq force :full)
-      ;; This is overkill, but go through all the required/provided modules to make sure
-      ;; compile-time env is all there and up to date.
-      (compile-ccl t)
-      ;; Else just load stuff we redefined.  Until build a new lisp.
-      (let ((*warn-if-redefine-kernel* nil))
-        (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-        (load "ccl:lib;macros.lisp")
-        (load "ccl:lib;foreign-types.lisp")
-        (load "ccl:lib;db-io.lisp")
-        (load "ccl:library;sockets.lisp")
-        ;(load "ccl:lib;nfcomp.lisp")
-        ;(load "ccl:lib;compile-ccl.lisp")
-        )))
+    ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
+    ;(load "ccl:lib;compile-ccl.lisp")
+    ;(load "ccl:lib;macros.lisp")
+    ;(load "ccl:lib;foreign-types.lisp")
+    ;(load "ccl:lib;db-io.lisp")
+    ;(load "ccl:library;sockets.lisp")
+    ;(load "ccl:lib;nfcomp.lisp")
+    ;(load "ccl:lib;compile-ccl.lisp")
+    )
 
-  ;; Compile level-0
-  (let* ((*build-time-optional-features* nil)
-         (*features* *features*)
-         (*save-source-locations* NIL #+no *ccl-save-source-locations*)
+  (let* ((*features* *features*)
+         (*save-source-locations* NIL)
          (*cerror-on-constant-redefinition* t)
-         ;; Once we get into lists and other lib files, macros get redefined at compile-time
-         ;(*warn-if-redefine-kernel* t)
-         (*warn-if-redefine-kernel* nil)
          (*package* (find-package :ccl))
          (*save-doc-strings* t)
-         (*fasl-save-doc-strings* t))
-    (with-global-optimization-settings ()
-      (flet ((fcomp (srcs outpath)
-               (unless (consp srcs) (setq srcs (list srcs)))
-               (let* ((src (car srcs))
-                      (output (merge-pathnames outpath src)))
-                 (when force (assert (not (probe-file output)))) ;; Check for duplicate filenames...
-                 (when (or force
-                           (not (probe-file output))
-                           (let ((outdate (file-write-date output)))
-                             (some (lambda (src) (> (file-write-date src) outdate)) srcs)))
-                   (setq *nx-speed* (max 1 *nx-speed*))
-                   (setq *nx-safety* (min 1 *nx-safety*))
-                   ;; This sets up the target:: and os:: package nicknames and *target-ftd*
-                   (with-cross-compilation-target (:darwincvm)
-                     ;; compile-file doesn't like to replace non-fasl file
-                     (when (probe-file output) (delete-file output))
-                     (compile-file src :target :darwincvm :features nil :output-file output :verbose t))))))
-        ;; TODO: Maybe should make a file, LEVEL-0.LISP that just sets *level-0-files*, which can then be loaded,
-        ;; so don't rely on contents of directories..
-        (ensure-directories-exist "ccl:cvmsrcs;level-0;")
-        (let ((outpath (merge-pathnames "ccl:cvmsrcs;level-0;" (backend-target-fasl-pathname *cvm-backend*))))
-          (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
-          (dolist (dir '("ccl:level-0;" "ccl:level-0;CVM;"))
-            (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-              do (fcomp src outpath))))
-        (ensure-directories-exist "ccl:cvmsrcs;")
-        (let ((outpath (merge-pathnames "ccl:cvmsrcs;" (backend-target-fasl-pathname *cvm-backend*))))
-          (when force (mapcar #'delete-file (directory (make-pathname :name :wild :defaults outpath))))
-          (loop for module in *modules-to-compile*
-            if (member module *modules-not-for-cvm*)
-            do (format t "~&IGNORING ~s" module)
-            ;; Ignore the requested fasl dir, we're putting everything in one dir
-            else do (fcomp (caddr (assoc module *ccl-system*)) outpath)))))))
+         (*fasl-save-doc-strings* t)
+         (*aux-modules* (set-difference *aux-modules* *modules-not-for-cvm*))
+         (*code-modules* (set-difference *code-modules* *modules-not-for-cvm*))
+         (*compiler-modules* (set-difference *compiler-modules* *modules-not-for-cvm*))
+         ;; Send all output to cvmsrcs.
+         (*ccl-system* (loop for (module fasl . sources) in *ccl-system*
+                         collect (list* module (merge-pathnames "ccl:cvmsrcs;" fasl) sources)))
+         ;; (cross-compile-ccl t) will reload sysdef-modules (i.e. systems and compile-ccl) as first thing,
+         ;; which would override all our careful rebinding above.
+         (*aux-modules* (append *sysdef-modules* *aux-modules*))
+         (*sysdef-modules* nil))
 
-        
+    ;; Compile level-0
+    ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
+    (with-global-optimization-settings ()
+      (ensure-directories-exist "ccl:cvmsrcs;level-0;")
+      (when force (mapcar #'delete-file (directory (merge-pathnames "ccl:cvmsrcs;level-0;*"
+                                                                    (backend-target-fasl-pathname *cvm-backend*)))))
+      ;(if force (xload-level-0 :force) (xload-level-0))
+      (let* ((level-0-systems
+              (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
+                nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
+                        collect (list (intern (string-upcase (pathname-name src)) :ccl)
+                                      (merge-pathnames "ccl:cvmsrcs;level-0;" src)
+                                      src))))
+             (*ccl-system* (append level-0-systems *ccl-system*))
+             (target (backend-name *cvm-backend*)))
+
+        (with-cross-compilation-target (target)
+          (let ((*target-backend* *cvm-backend*))
+            (target-compile-modules (mapcar #'car level-0-systems) target force))))
+
+
+      (ensure-directories-exist "ccl:cvmsrcs;")
+      (when force (mapcar #'delete-file (directory (merge-pathnames "ccl:cvmsrcs;*"
+                                                                    (backend-target-fasl-pathname *cvm-backend*)))))
+      (cross-compile-ccl :darwincvm (not (null force))))))
+
+
 (defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
   (when (eq (car lambda-expr) 'defun)
     (setq lambda-expr (cons 'lambda (cddr lambda-expr))))
