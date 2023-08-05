@@ -2,7 +2,7 @@
 
 (defparameter *modules-not-for-cvm*
   '(;l1-lisp-threads l1-processes l1-sockets    ;sockets
-    l1-cl-package
+    ;; l1-cl-package
     edit-callers
     cover
     leaks
@@ -16,7 +16,7 @@
 
 ;; For testing, integrate back into general setup later
 (defparameter *modules-to-compile*
-  '(;; LEVEL-1
+  '(LEVEL-1
     L1-CL-PACKAGE
     L1-UTILS
     L1-INIT
