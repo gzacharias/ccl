@@ -304,7 +304,10 @@
 ;compile if needed.
 (defun target-compile-modules (modules target force-compile)
   (if (not (listp modules)) (setq modules (list modules)))
-  (in-development-mode
+  (let ((*package* (find-package "CCL"))
+        (*warn-if-redefine-kernel* (if (eq target (backend-name *host-backend*))
+                                     nil
+                                     *warn-if-redefine-kernel*)))
    (dolist (module modules t)
      (multiple-value-bind (fasl sources) (find-module module target)
       (if (needs-compile-p fasl sources force-compile)
