@@ -6669,4 +6669,97 @@ are printed.")
 	   (vector-stream-ioblock-displacement ioblock)))))
 
 
+#+CVM-TARGET(progn
+
+
+
+(defclass native-stream ()
+  ((handle :initarg :handle :reader native-stream-handle)))
+
+(defclass native-input-stream (native-stream fundamental-character-input-stream)
+  ((interactive-p :type (member nil t :default) :initarg :interactive-p)))
+
+(defmethod interactive-stream-p ((stream native-input-stream))
+  (declare (ftype function native-interactive-stream-p))
+  (let ((interactive-p (slot-value stream 'interactive-p)))
+    (if (eq interactive-p :default)
+      (native-interactive-stream-p stream)
+      interactive-p)))
+
+(defclass native-output-stream (native-stream fundamental-character-output-stream) ())
+
+(defclass native-io-stream (native-stream fundamental-character-input-stream fundamental-character-output-stream)
+  ())
+
+(defun make-initial-stream (which &key interactive)
+  (ecase which
+    (:input
+     (make-instance 'native-input-stream :handle 0 :interactive-p interactive))
+    (:output
+     (assert (not interactive))
+     (make-instance 'native-output-stream :handle 1))
+    (:error
+     (assert (not interactive))
+     (make-instance 'native-output-stream :handle 2))
+    (:tty
+     (make-instance 'native-io-stream :handle 3 :interactive-p t))))
+
+(macrolet ((native-method (name &rest args)
+             (let* ((native-name (intern (if (setf-function-name-p name)
+                                           (concatenate 'string "SET-NATIVE-" (string (cadr name)))
+                                           (concatenate 'string "NATIVE-" (string name)))))
+                    (method-args (substitute '(stream native-stream) 'stream args))
+                    (vals (loop for arg in args
+                            unless (member arg lambda-list-keywords)
+                            collect (cond ((eq arg 'stream) '(native-stream-handle stream))
+                                          ((consp arg) (car arg))
+                                          (t arg)))))
+               `(defmethod ,name (,@method-args)
+                  (declare (ftype function ,native-name))
+                  (,native-name ,@vals)))))
+  (native-method stream-read-char stream)
+  (native-method stream-read-byte stream)
+  (native-method stream-unread-char stream char)
+  (native-method stream-read-char-no-hang stream)
+  ;(native-method stream-peek-char stream)
+  ;(native-method stream-listen stream)
+  ;(native-method stream-eofp stream)
+  ;(native-method interactive-stream-p stream)
+  ;(native-method stream-clear-input stream)
+  ;(native-method stream-read-line stream)
+  ;(native-method stream-read-list stream l c)
+  ;(native-method stream-read-vector stream v start end)
+  (native-method stream-write-char stream c)
+  ;(native-method stream-write-string stream str &optional (start 0) end)
+  ;(native-method stream-write-byte stream b)
+  ;(native-method stream-clear-output stream)
+  (native-method stream-line-column stream)
+  ;(native-method stream-line-length stream) ;; *default-right-margin*
+  (native-method stream-set-column stream new)
+  ;(native-method stream-advance-to-column stream new)
+  ;(native-method stream-start-line-p stream)
+  ;(native-method stream-fresh-line stream)
+  ;(native-method stream-terpri stream)
+  (native-method stream-force-output stream)
+  (native-method stream-finish-output stream)
+  ;(native-method stream-write-list stream l c)
+  ;(native-method stream-write-vector stream v start end)
+  ;(native-method stream-element-type stream)
+  ;(native-method input-stream-p stream)
+  ;(native-method output-stream-p stream)
+  ;(native-method stream-direction stream)
+  ;(native-method stream-device direction stream)
+  ;(native-method stream-surrounding-characters stream)
+  ;(native-method stream-input-timeout stream)
+  ;(native-method (setf input-stream-timeout) new stream)
+  ;(native-method stream-output-timeout stream)
+  ;(native-method (setf output-stream-timeout) new stream)
+  ;(native-method stream-deadline stream)
+  ;(native-method stream-eof-transient-p stream)
+  ;(native-method stream-write-string stream string &optional (start 0) end)
+  ;(native-method stream-length stream &optional new)
+  ;(native-method stream-position stream &optional new)
+  ;(native-method close stream &key abort)
+  )
+)
 ; end of L1-streams.lisp

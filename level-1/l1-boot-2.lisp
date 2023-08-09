@@ -127,40 +127,43 @@ present and false otherwise. This variable shouldn't be set by user code.")
                      :int)))))))
 )
 
-(defun initialize-interactive-streams ()
+#-cvm-target
+(defun make-interactive-streams ()
   (let* ((encoding (lookup-character-encoding *terminal-character-encoding-name*))
          (encoding-name (if encoding (character-encoding-name encoding))))
     #+windows-target (validate-standard-io-handles)
-    (setq *stdin* (let* ((infd #-windows-target 0
-                               #+windows-target (%ptr-to-int
-                                                 (#_GetStdHandle #$STD_INPUT_HANDLE))))
-                               (make-fd-stream infd
-                                  :basic t
-                                  :sharing :lock
-                                  :direction :input
-                                  :interactive (or (not *batch-flag*)
-                                                   (< (fd-lseek infd 0 #$SEEK_CUR)                                                      
-                                                      0))
-                                  :encoding encoding-name
-                                  #+windows-target :line-termination #+windows-target :cp/m)))
-    (setq *stdout* (make-fd-stream #-windows-target 1
-                                   #+windows-target (%ptr-to-int
-                                                     (#_GetStdHandle #$STD_OUTPUT_HANDLE))
-                                   :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :msdos))
-    (setq *stderr* (make-fd-stream #-windows-target 2
+    (setq *stdin*
+          (let* ((infd #-windows-target 0
+                       #+windows-target (%ptr-to-int
+                                         (#_GetStdHandle #$STD_INPUT_HANDLE))))
+            (make-fd-stream infd
+                            :basic t
+                            :sharing :lock
+                            :direction :input
+                            :interactive (or (not *batch-flag*)
+                                             (< (fd-lseek infd 0 #$SEEK_CUR)                                                      
+                                                0))
+                            :encoding encoding-name
+                            #+windows-target :line-termination #+windows-target :cp/m)))
+    (setq *stdout*
+          (make-fd-stream #-windows-target 1
+                          #+windows-target (%ptr-to-int
+                                            (#_GetStdHandle #$STD_OUTPUT_HANDLE))
+                          :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :msdos))
+    (setq *stderr*
+          (make-fd-stream #-windows-target 2
                                    #+windows-target (%ptr-to-int
                                                      (#_GetStdHandle #$STD_ERROR_HANDLE))
                                    :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :crlf))
-    (add-auto-flush-stream *stdout*)
-    (add-auto-flush-stream *stderr*)
-    (if *batch-flag*
+    (setq *terminal-input* *stdin*
+          *terminal-output* *stdout*)
+    #-windows-target
+    (when *batch-flag*
       (let* ((tty-fd
-              #-windows-target
                (let* ((fd (fd-open "/dev/tty" #$O_RDWR)))
                  (if (>= fd 0) fd)))
-             (can-use-tty #-windows-target (and tty-fd (eql (tcgetpgrp tty-fd) (getpid)))))
+             (can-use-tty (and tty-fd (eql (tcgetpgrp tty-fd) (getpid)))))
         (if can-use-tty
-          (progn
             (setq
              *terminal-input* (make-fd-stream tty-fd
                                               :basic t
@@ -168,36 +171,47 @@ present and false otherwise. This variable shouldn't be set by user code.")
                                               :interactive t
                                               :sharing :lock
                                               :encoding encoding-name)
-             *terminal-output* (make-fd-stream tty-fd :basic t :direction :output :sharing :lock :encoding encoding-name)
-             *terminal-io* (make-echoing-two-way-stream
-                            *terminal-input* *terminal-output*))
-            (add-auto-flush-stream *terminal-output*))
-          (progn
-            (when tty-fd (fd-close tty-fd))
-            (setq *terminal-input* *stdin*
-                  *terminal-output* *stdout*
-                  *terminal-io* (make-two-way-stream
-                                 *terminal-input* *terminal-output*))))
-        (setq *standard-input* *stdin*
-              *standard-output* *stdout*))
-      (progn
-        (setq *terminal-input* *stdin*
-              *terminal-output* *stdout*
-              *terminal-io* (make-echoing-two-way-stream
-                             *terminal-input* *terminal-output*))
-        (setq *standard-input* (make-synonym-stream '*terminal-io*)
-              *standard-output* (make-synonym-stream '*terminal-io*))))
+             *terminal-output* (make-fd-stream tty-fd :basic t :direction :output :sharing :lock :encoding encoding-name))
+          (when tty-fd (fd-close tty-fd)))))
     (setq *error-output* (if (or *batch-flag*
                                  (not (same-fd-p (stream-device *stderr* :output)
                                                  (stream-device *stdout* :output))))
                            (make-synonym-stream '*stderr*)
-                           (make-synonym-stream '*terminal-io*)))
-    (setq *query-io* (make-synonym-stream '*terminal-io*))
-    (setq *debug-io* *query-io*)
-    (setq *trace-output* *standard-output*)
-    (push *stdout* *auto-flush-streams*)
-    (setf (input-stream-shared-resource *terminal-input*)
-          (make-shared-resource "Shared Terminal Input")))
+                           (make-synonym-stream '*terminal-io*)))))
+
+#+cvm-target
+(defun make-interactive-streams ()
+  (setq *stdin* (make-initial-stream :input :interactive (or (not *batch-flag*) :default)))
+  (setq *stdout* (make-initial-stream :output))
+  (setq *stderr* (make-initial-stream :error))
+  (setq *terminal-input* *stdin*
+        *terminal-output* *stdout*)
+  (when *batch-flag*
+    (let ((tty (make-initial-stream :tty)))
+      (when tty
+        (setq *terminal-input* tty *terminal-output* tty))))
+  (setq *error-output* (if *batch-flag*
+                         (make-synonym-stream '*stderr*)
+                         (make-synonym-stream '*terminal-io*))))
+
+(defun initialize-interactive-streams ()
+  (make-interactive-streams)
+  (add-auto-flush-stream *stdout*)
+  (add-auto-flush-stream *stderr*)
+  (unless (eq *terminal-output* *stdout*)
+    (add-auto-flush-stream *terminal-output*))
+  (setq *terminal-io* (make-echoing-two-way-stream
+                       *terminal-input* *terminal-output*))
+  (if *batch-flag*
+    (setq *standard-input* *stdin*
+          *standard-output* *stdout*)
+    (setq *standard-input* (make-synonym-stream '*terminal-io*)
+          *standard-output* (make-synonym-stream '*terminal-io*)))
+  (setq *query-io* (make-synonym-stream '*terminal-io*))
+  (setq *debug-io* *query-io*)
+  (setq *trace-output* *standard-output*)
+  (setf (input-stream-shared-resource *terminal-input*)
+        (make-shared-resource "Shared Terminal Input"))
   (setq *interactive-streams-initialized* t))
 
 (initialize-interactive-streams)
