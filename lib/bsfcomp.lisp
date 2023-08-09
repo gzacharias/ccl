@@ -11,7 +11,8 @@
     vinsn
     reg))
 
-(defun build-cvm (&optional force)
+(import 'compile-ccl :cl-user)
+(defun compile-cvm (&optional force)
   (load "ccl:compiler;cvm;cvm-arch")
   ;; this gets required by loading cvm2.lisp.  Have to compile it so require can find it.
   (compile-file "ccl:compiler;cvm;cvm-backend.lisp" :output-file "ccl:bin;cvm-backend" :verbose t :load t)
@@ -86,43 +87,6 @@
       (pprint bslambda)
       bslambda)))
   
-;; So all this needs to get vm versions, or be pre-built into the vm.
-;"level-0/X86/X8664/x8664-bignum" "level-0/X86/x86-array" "level-0/X86/x86-clos" "level-0/X86/x86-def" "level-0/X86/x86-float"
-;"level-0/X86/x86-hash" "level-0/X86/x86-io""level-0/X86/x86-misc""level-0/X86/x86-numbers""level-0/X86/x86-pred"
-;"level-0/X86/x86-symbol""level-0/X86/x86-utils"
-
-;"level-0/l0-aprims""level-0/l0-array""level-0/l0-bignum32" "level-0/l0-bignum64" "level-0/l0-cfm-support"
-;"level-0/l0-complex""level-0/l0-def""level-0/l0-error""level-0/l0-float""level-0/l0-hash""level-0/l0-init""level-0/l0-int"
-;"level-0/l0-io""level-0/l0-misc""level-0/l0-numbers""level-0/l0-pred""level-0/l0-symbol""level-0/l0-utils""level-0/nfasload"
-
-
-#+not-used
-(defun bscompile-for-vm (files &key (verbose t))
-  ;(bsload)
-  (require 'faslenv "ccl:xdump;faslenv")
-  (unless (consp files) (setq files (list files)))
-  (let* ((*features* (cons :cross-compiling *features*))
-         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
-    (let* ((*build-time-optional-features* nil)
-           (*save-source-locations* nil)
-           (cd (current-directory))
-           (*cerror-on-constant-redefinition* nil)
-           (*warn-if-redefine-kernel* nil))
-      (unwind-protect
-          (with-global-optimization-settings ()
-            (setf (current-directory) "ccl:")
-            (loop for file in files
-              as output-file = (merge-pathnames (backend-target-fasl-pathname *cvm-backend*) file)
-              ;; Compile file complains if it's not a fasl file.
-              when (probe-file output-file) do (delete-file output-file)
-              do (compile-file file
-                               :target :cvm
-                               :output-file output-file
-                               :verbose verbose)))
-        (setf (current-directory) cd)))))
-
-  
-
 ;; Use the first pass of the file compiler, but do our own alternate output.
 (unadvise fasl-dump-file :name bscompile)
 (advise fasl-dump-file
