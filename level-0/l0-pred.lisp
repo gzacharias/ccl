@@ -230,7 +230,7 @@
     (or (= fulltag target::fulltag-immheader-0)
         (= fulltag target::fulltag-immheader-1)
         (= fulltag target::fulltag-immheader-2)))
-  #+cvm
+  #+cvm-target
   (cvm-ivectorp x)
   )
 
