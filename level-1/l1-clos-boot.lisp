@@ -1956,6 +1956,7 @@ to replace that class with ~s" name old-class new-class)
 
   (make-built-in-class 'hash-table-vector)
   (make-built-in-class 'catch-frame)
+  #+cvm-target (make-built-in-class 'call-frame)
   (make-built-in-class 'code-vector)
   #+ppc32-target
   (make-built-in-class 'creole-object)
@@ -2447,6 +2448,7 @@ to replace that class with ~s" name old-class new-class)
           (map-subtag target::subtag-complex-single-float-vector simple-complex-single-float-vector)
           (map-subtag target::subtag-complex-double-float-vector simple-complex-double-float-vector)
           (map-subtag target::subtag-catch-frame catch-frame)
+          #+cvm-target (map-subtag target::subtag-call-frame call-frame)
           (map-subtag target::subtag-hash-vector hash-table-vector)
           (map-subtag target::subtag-value-cell value-cell)
           (map-subtag target::subtag-pool pool)
@@ -2495,10 +2497,10 @@ to replace that class with ~s" name old-class new-class)
         (setf (%svref v target::subtag-vectorH)
               #'(lambda (v)
                   (let* ((subtype (%array-header-subtype v)))
-                    (declare (fixnum subtype))
-                    #+cvm
+                    (declare (fixnum subtype) #+cvm-target (special *ivector-vectorh-classes*))
+                    #+cvm-target
                     (%svref *ivector-vectorh-classes* subtype)
-                    #-cvm
+                    #-cvm-target
                     (if (eql subtype target::subtag-simple-vector)
                       *general-vector-class*
                       #-x8664-target

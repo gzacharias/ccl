@@ -227,7 +227,7 @@
     (or (= fulltag x8664::fulltag-immheader-0)
         (= fulltag x8664::fulltag-immheader-1)
         (= fulltag x8664::fulltag-immheader-2)))
-  #+cvm
+  #+cvm-target
   (cvm-ivectorp x)
   )
 

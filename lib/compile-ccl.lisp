@@ -513,7 +513,8 @@
     (:freebsdx8632 "fx86cl")
     (:linuxarm "armcl")
     (:darwinarm "darmcl")
-    (:androidarm "aarmcl")))
+    (:androidarm "aarmcl")
+    (:darwincvm "dcvmsrcs")))
 
 (defun standard-image-name (&optional (target (backend-name *host-backend*)))
   (concatenate 'string (pathname-name (standard-kernel-name target)) ".image"))

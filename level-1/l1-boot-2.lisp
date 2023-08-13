@@ -181,6 +181,8 @@ present and false otherwise. This variable shouldn't be set by user code.")
 
 #+cvm-target
 (defun make-interactive-streams ()
+  ;This is defined in l1-streams, which is compiled after this (but loaded before it)
+  (declare (ftype function make-initial-stream))
   (setq *stdin* (make-initial-stream :input :interactive (or (not *batch-flag*) :default)))
   (setq *stdout* (make-initial-stream :output))
   (setq *stderr* (make-initial-stream :error))

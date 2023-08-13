@@ -1306,6 +1306,8 @@ Will differ from *compiling-file* during an INCLUDE")
                          (logior (ash 1 x8664::fulltag-immheader-0)
                                  (ash 1 x8664::fulltag-immheader-1)
                                  (ash 1 x8664::fulltag-immheader-2))))
+           #+cvm-target
+           (cvm-ivectorp exp)
            #+arm-target
            (= (the fixnum (logand type-code arm::fulltagmask)) arm::fulltag-immheader)
            (case type-code
@@ -1327,7 +1329,9 @@ Will differ from *compiling-file* during an INCLUDE")
              (#+ppc-target #.target::subtag-symbol
               #+x8632-target #.target::subtag-symbol
               #+x8664-target #.target::tag-symbol
-              #+arm-target #.target::subtag-symbol (fasl-scan-symbol exp))
+              #+arm-target #.target::subtag-symbol
+              #+cvm-target #.cvm::subtag-symbol
+              (fasl-scan-symbol exp))
              ((#.target::subtag-instance #.target::subtag-struct)
               (fasl-scan-user-form exp))
              (#.target::subtag-package (fasl-scan-ref exp))
@@ -1489,6 +1493,11 @@ Will differ from *compiling-file* during an INCLUDE")
 (defvar *fasdump-eref*)
 
 (defun fasl-dump-file (gnames goffsets forms hash filename)
+  (when (eq *fasl-target* :darwincvm)
+    (assert (null gnames))
+    (assert (null goffsets))
+    (return-from fasl-dump-file
+      (fasl-dump-cvm-file forms hash filename)))
   (let ((opened? nil)
         (finished? nil))
     (unwind-protect
@@ -1768,11 +1777,9 @@ Will differ from *compiling-file* during an INCLUDE")
 ;;; case.
 #-x86-target
 (defun fasl-dump-function (f)
-  #-CVM
   (if (and (not (eq *fasl-backend* *host-backend*))
            (typep f 'function))
     (compiler-bug "Dumping a native function constant ~s during cross-compilation." f))
-  #-CVM
   (if (and (= (typecode f) target::subtag-xfunction)
            (= (typecode (uvref f 0)) target::subtag-u8-vector))
     (fasl-xdump-clfun f)

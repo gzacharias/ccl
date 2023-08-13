@@ -684,6 +684,8 @@
 
 ; This returns the current head of the db-link chain.
 (defun db-link (&optional context)
+  #+cvm-target 0
+  #-cvm-target
   (if context
     (bt.db-link context)
     (%fixnum-ref (%current-tcr) (- target::tcr.db-link target::tcr-bias))))
