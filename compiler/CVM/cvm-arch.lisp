@@ -92,7 +92,8 @@
   subtag-slot-vector
   subtag-basic-stream
   subtag-function
-  (subtag-array-header 10))
+  subtag-call-frame
+  (subtag-array-header 11))
 
 (define-subtags gvector-subtags-1
   subtag-ratio
@@ -103,7 +104,8 @@
   subtag-xfunction
   subtag-lock
   subtag-instance
-  (subtag-vector-header 10)
+  subtag-lexpr-vector
+  (subtag-vector-header 11)
   subtag-simple-vector)
 
 (define-subtags ivector-subtags-misc
@@ -141,6 +143,51 @@
   subtag-unsigned-64-bit-vector
   subtag-double-float-vector)
 
+;;; Variables we have no intention of defining, any uses will have to be fixed if they actually
+;;; come up at runtime.   Don't need compiler warnings
+(declaim (special area.code 
+                  area.gc-count 
+                  area.high 
+                  area.low 
+                  area.older 
+                  area.softlimit 
+                  area.succ 
+                  area.threshold 
+                  area.younger 
+                  catch-frame.catch-tag-cell 
+                  catch-frame.db-link 
+                  catch-frame.link 
+                  catch-frame.link-cell 
+                  complex-double-float.realpart 
+                  complex-single-float.realpart 
+                  cons.car 
+                  cons.cdr 
+                  cons.size 
+                  double-float.value-cell 
+                  misc-complex-dfloat-offset 
+                  misc-dfloat-offset 
+                  tag-misc 
+                  tcr-bias 
+                  tcr.activate 
+                  tcr.catch-top 
+                  tcr.cs-area 
+                  tcr.db-link 
+                  tcr.flags 
+                  tcr.interrupt-pending 
+                  tcr.log2-allocation-quantum 
+                  tcr.native-thread-id 
+                  tcr.osid 
+                  tcr.reset-completion 
+                  tcr.suspend-count 
+                  tcr.ts-area 
+                  tcr.vs-area 
+                  tcr.xframe 
+                  value-cell-header 
+                  value-cell.value-cell))
+
+(defun %kernel-global (sym)
+  (error "Who is calling ~s on ~s" '%kernel-global sym))
+
 ;;; And these variables just get directly referenced all over the place
 (defconstant nbits-in-word 64)
 (defconstant num-subtag-bits 8) ;; heh, like you really could change this!
@@ -155,6 +202,8 @@
 (defconstant tag-list lisptag-list)
 
 (defconstant subtag-weak subtag-population)
+
+(defconstant arg-check-trap-pc-limit 1)
 
 ;;; find whoever is using these, make sure it's not doing arithmetic on objects
 (defconstant misc-data-offset (- 8 fulltag-misc))

@@ -11,7 +11,27 @@
     vinsn
     reg))
 
-(import 'compile-ccl :cl-user)
+(import 'compile-cvm :cl-user)
+
+;; So, this is called for cross-compiling cvm when it's running in some regular CCL.
+;; It will cross compile and put output in ccl:cvmsrcs;
+;;  this output should then get archived somewhere, like an IMAGE, and then will be used
+;;   to load cvm into a VM.
+;;   SO now have have ccl running where darwincvm is the host system.  We want to be
+;;    able to rebuild it, incase the stuff ccl:cvmsrcs; got old.
+
+;;    So there want to run native, and maybe rebuild-ccl?  this will put the "fasl" files in all the
+;;     usual places it puts fasl files.  have to replace the xloading of level-0, but otherwise should be ok.
+;;   Then instead of building an image, we put all the fasls in ccl:cvmsrcs; rebuild-ccl
+;; HAVE TO put the cvmsrcs file elsewhere because rebuild-ccl :clean deletes ccl:**;*.<fasl>
+;; So ok, it does COMPILE-CCL, then XLOAD-LEVEL-0,
+;;;   THEN need to factor out the RELOAD part, which runs external program to build the image from the fasls.
+;;;   ;; OK, have image name be "cvmsrcs.image", and copy stuff into there.
+
+;;; ONCE have recompilation working, natively in the VM,
+;;; next step is cross compiling darwinx8664.
+
+;; This is used to cross compile cvm to get initial image.
 (defun compile-cvm (&optional force)
   (load "ccl:compiler;cvm;cvm-arch")
   ;; this gets required by loading cvm2.lisp.  Have to compile it so require can find it.
@@ -82,24 +102,11 @@
                                       :target :darwincvm
                                       :keep-lambda *save-definitions*
                                       :keep-symbols *save-local-symbols*)))
-         (bslambda (ev2-lfun-bslambda fn)))
+         (bslambda (lfun-bslambda fn)))
     (if print
       (pprint bslambda)
       bslambda)))
   
-;; Use the first pass of the file compiler, but do our own alternate output.
-(unadvise fasl-dump-file :name bscompile)
-(advise fasl-dump-file
-        (progn
-          (if (eq *fasl-target* :darwincvm)
-            (destructuring-bind (gnames goffsets forms hash output-file) arglist
-              (assert (null gnames))
-              (assert (null goffsets))
-              (format *TRACE-OUTPUT* "ev2-output to ~s" output-file)
-              (ev2-output-compiled-file forms hash output-file))
-            (:do-it)))
-          :when :around :name bscompile)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; Compiling files
@@ -112,7 +119,7 @@
 
 ;; Really would be so much easier to intercept this in fcomp-form-1
 (defun set-package-call-p (fn)
-  (let ((bslambda (ev2-lfun-bslambda fn)))
+  (let ((bslambda (lfun-bslambda fn)))
     (destructuring-bind (name argspecs body nlocals) (cdr bslambda)
       (when (and (equal name '($bs-quote nil))
                  (every #'null (butlast argspecs))
@@ -124,7 +131,7 @@
         (cadr (caddr body))))))
         
 
-(defun ev2-output-compiled-file (toplevel-forms hash output-file)
+(defun fasl-dump-cvm-file (toplevel-forms hash output-file)
   ;;(assert (equalp (pathname-type output-file) (pathname-type (bscompile-fasl))))
   (with-open-file (outf output-file :direction :output :if-exists :supersede)
     (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (hash-table-count hash))
@@ -138,7 +145,7 @@
                               (check-type (car args) (or source-note null))
                               nil #+NOT-YET '$fasl-toplevel-location nil)
                              ((eq op $fasl-lfuncall)
-                              (check-type (car args) function)
+                              (check-type (car args) xfunction)
                               (let ((pkg (set-package-call-p (car args))))
                                 (if pkg
                                   (progn
@@ -146,7 +153,7 @@
                                     '$fasl-set-package)
                                   `$fasl-funcall)))
                              ((eq op $fasl-defun)
-                              (check-type (car args) function)
+                              (check-type (car args) xfunction)
                               '$fasl-defun)
                              ((eq op $fasl-defvar)
                               '$fasl-defvar)
@@ -195,7 +202,8 @@
                  maker)))))))
 
 (defun ev2-maker-dispatch (obj store-index)
-  (cond ((typep obj '(or fixnum single-float character boolean)) (ev2-maybe-store obj store-index))
+  (cond ((typep obj '(or fixnum single-float standard-char boolean)) (ev2-maybe-store obj store-index))
+        ((typep obj 'character) (ev2-maybe-store `($fs-char ,(char-code obj)) store-index))
         ((eq obj (%unbound-marker)) (ev2-maybe-store '($fs-unbound-marker) store-index))
         ((eq obj (%slot-unbound-marker)) (ev2-maybe-store '($fs-slot-unbound-marker) store-index))
         ((eq obj (%illegal-marker)) (ev2-maybe-store '($fs-illegal-marker) store-index))
@@ -203,6 +211,7 @@
         ((consp obj) (ev2-cons-maker obj store-index))
         ((symbolp obj) (ev2-symbol-maker obj store-index))
         ((typep obj 'function) (ev2-function-maker obj store-index))
+        ((typep obj 'xfunction) (ev2-function-maker obj store-index))
         ((typep obj 'simple-base-string) (ev2-string-maker obj store-index))
         ((typep obj 'simple-vector) (ev2-simple-vector-maker obj store-index))
         ((typep obj '(simple-array * (*))) (ev2-ivector-maker obj store-index))
@@ -359,11 +368,8 @@
 
 (defun ev2-function-maker (fn store-index)
   (assert *ev2-bsquote*)
-  (let ((bslambda (ev2-lfun-bslambda fn)))
-    ;;; ***TODO: Currently we're not generating/tracking the lfun-bits!!!
-    ;;; Stick them in the bslambda, since can't give the lfun incorrect lfun-bits!
-    ;;; Or have an XFUNCTION type that we use.
+  (let ((bslambda (lfun-bslambda fn)))
     (let ((*ev2-bsquote* nil))
       `($fs-init-function ,(ev2-maybe-store '($fs-cons-function) store-index)
-                          ($fs-init-bslambda ,(ev2-maker-form bslambda))))))
+                         ,(ev2-maker-form bslambda)))))
 
