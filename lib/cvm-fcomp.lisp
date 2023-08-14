@@ -33,19 +33,16 @@
 
 ;; This is used to cross compile cvm to get initial image.
 (defun compile-cvm (&optional force)
-  (load "ccl:compiler;cvm;cvm-arch")
-  ;; this gets required by loading cvm2.lisp.  Have to compile it so require can find it.
-  (compile-file "ccl:compiler;cvm;cvm-backend.lisp" :output-file "ccl:bin;cvm-backend" :verbose t :load t)
+  (bsload)
   ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
   (let ((*warn-if-redefine-kernel* nil))
-    ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-    ;(load "ccl:lib;compile-ccl.lisp")
+    (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
+    (load "ccl:lib;compile-ccl.lisp")
     ;(load "ccl:lib;macros.lisp")
     ;(load "ccl:lib;foreign-types.lisp")
     ;(load "ccl:lib;db-io.lisp")
     ;(load "ccl:library;sockets.lisp")
     ;(load "ccl:lib;nfcomp.lisp")
-    ;(load "ccl:lib;compile-ccl.lisp")
     )
 
   (let* ((*features* *features*)
@@ -269,8 +266,8 @@
              (when store-index
                (unless (or (eq sym 'bslambda)
                            (string= "$BS-" (string sym) :end2 4)
-                           ;; Get rid of these
-                           (string= "$FF-" (string sym) :end2 4))
+                           ;; FFI types
+                           (member sym '(:int64 :int32 :int16 :int8 :uint64 :uint32 :uint16 :uint8 :float :double :pointer  :void)))
                  (format *trace-output* "~&NOT storing ~s" sym)
                  (break "How did this find its way here?"))
                (remhash sym *ev2-fcomp-hash*))
