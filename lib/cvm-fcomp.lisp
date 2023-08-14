@@ -33,7 +33,7 @@
 
 ;; This is used to cross compile cvm to get initial image.
 (defun compile-cvm (&optional force)
-  (bsload)
+  (load-cvm-target)
   ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
   (let ((*warn-if-redefine-kernel* nil))
     (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
