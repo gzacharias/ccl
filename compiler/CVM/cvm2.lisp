@@ -58,46 +58,16 @@
   (get-lex-vcell tag t))
 
 
-(defparameter *ev2-prototype* (nfunction ev2-func
-                                (lambda (&rest args)
-                                  (declare (ignore args))
-                                  (error "Can't eval: ~s" 'ev2-lambda))))
+#-cvm-target
+(defun make-bslambda-lfun (bslambda)
+  (let ((xfn (%alloc-misc 1 target::subtag-xfunction)))
+    (setf (uvref xfn 0) bslambda)
+    xfn))
 
-#+x86-target ;; not used, for debugging
-(progn
+#-cvm-target
+(defun lfun-bslambda (xfn)
+  (uvref (require-type xfn 'xfunction) 0))
 
-(defparameter *ev2-lfun-bslambda-index*
-  (let* ((fv (function-to-function-vector *ev2-prototype*))
-         (idx (uvsize fv)))
-    (loop when (eq (uvref fv (decf idx)) 'ev2-lambda) return idx)))
-
-(defun ev2-lfun-bslambda (lfun)
-  (let ((fv (function-to-function-vector (require-type lfun 'function))))
-    (assert (eq (uvsize fv) (uvsize (function-to-function-vector *ev2-prototype*))))
-    (let ((lambda (uvref fv *ev2-lfun-bslambda-index*)))
-      (assert (eq (car lambda) 'bslambda))
-      lambda)))
-)
-
-;;create-x86-function
-#+x86-target
-(defun ev2-make-lfun (fname lambda-sexp)
-  (let* ((pfn *ev2-prototype*)
-         (code-words (%function-code-words pfn)) ;; 14
-         (pfv (function-to-function-vector pfn))
-         (size (uvsize pfv))
-         (fv (allocate-typed-vector :function size)))
-    (%copy-ivector-to-ivector pfv 0 fv 0 (ash code-words target::word-shift))
-    ;; TODO: flush source location info...
-    (loop for i from code-words below size
-      do (uvset fv i (uvref pfv i)))
-    (flet ((offs (fv obj)
-             (loop for i upfrom code-words below size
-               when (eq (uvref fv i) obj) return i
-               finally (error "didn't find ~s" obj))))
-      (uvset fv (offs fv 'ev2-func) fname)
-      (uvset fv (offs fv 'ev2-lambda) lambda-sexp))
-    (function-vector-to-function fv)))
 
 (defmacro bslambda-bits (bslambda) `(car (last (third ,bslambda))))
 
@@ -107,9 +77,7 @@
     (unless (afunc-lfun a)
       (assert (eq (afunc-parent a) afunc))
       (ev2-compile a (if lambdaform (afunc-lambdaform a)) record-symbols)))
-
-  #+NO (pprint (decomp-acode (afunc-acode afunc)))
-
+  ;;(pprint (decomp-acode (afunc-acode afunc)))
   (let* ((inherited-vars (afunc-inherited-vars afunc))
          (fbits (afunc-bits afunc))
          (bslambda 
@@ -135,18 +103,13 @@
         (when parent
           (bitsetf $fbitnextmethargsp (afunc-bits parent)))))
 
-    ;; could make the xfunction, would get a bit more error checking.
-    (setf (afunc-lfun afunc)
-          (ev2-make-lfun (afunc-name afunc) bslambda))
+    (setf (afunc-lfun afunc) (make-bslambda-lfun bslambda))
 
     ;; now that we have an lfun, fixup any forward refs to the fn.
     (loop for ref in (afunc-fwd-refs afunc)
       do (assert (equal ref `($bs-quote ,afunc)))
       do (setf (cadr ref) (afunc-lfun afunc))))
   afunc)
-
-;; x862-lambda (our ev2-lambda-form) returns this
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; ev2-specials
@@ -932,7 +895,7 @@
   `($BS-MAKE-COMPLEX ,(ev2-quote 'double-float) ,(ev2-form real) ,(ev2-form imag)))
 
 (defev2 complex (real imag)
-  `($BS-MAKE_COMPILEX ,(ev2-quote T) ,(ev2-form real) ,(ev2-form imag)))
+  `($BS-MAKE-COMPLEX ,(ev2-quote T) ,(ev2-form real) ,(ev2-form imag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; conditionals

@@ -130,9 +130,24 @@
   (or (find-package "CVMDARWIN-FFI")
       (make-package "CVMDARWIN-FFI" :use "COMMON-LISP")))
 
-;; To be defined in the host.
+;; To be defined in the host.  ***TODO: CHECK THIS ONCE IN A WHILE
 (declaim (ftype function
+                cvm-symbolp
+                cvm-ivectorp
+                cvm-gvectorp
+
+                cvm-make-combined-method
+                cvm-make-gf
+                cvm-make-writer-method
+                cvm-make-reader-method
+                cvm-make-gf
+                cvm-make-slot-getter
+                cvm-make-slot-setter
+                cvm-make-slot-lookup-fn
+                cvm-make-type-fn
+
                 cvm-%kernel-import
+
                 cvm-external-call
                 cvm-access-foreign-field
                 setf-cvm-access-foreign-field
@@ -140,9 +155,14 @@
                 cvm-os-constant
                 (setf cvm-access-foreign-array)
                 cvm-foreign-bit-size
-                cvm-foreign-byte-offset
+                cvm-foreign-field-byte-offset
                 cvm-get-kernel-global
-                cvm-get-kernel-global-ptr))
+                (setf cvm-get-kernel-global)
+                cvm-get-kernel-global-ptr
+                cvm-xdisassemble
+
+                make-bslambda-lfun
+                lfun-bslambda))
 
 
 (defun %deferred-load-record (name)
@@ -207,44 +227,9 @@
     (funcall (ftd-ff-call-expand-function *target-ftd*)
              callform args)))
 
-;; DOn't want to redefine ccl function, so..
+;; DOn't want to redefine ccl function, so..  For debugging only.
 (define-compiler-macro %kernel-import (offset)
   (when (eq *target-backend* *cvm-backend*)
     (break "who still calls this? ~s" offset)))
-
-;;(setf (gethash :array (ftd-translators *cvm-ftd*))
-
-
-
-;;; **** CHEAT.  Could copy over all integer types.
-;;; Assume all integer types will remain integer types on that target...
-;;; -- Once everything compiles ok,  just see which ones get looked up
-;; definitely need :mach_msg_type_number_t
-
-;;; TYPES
-;;;   integer
-;;;     boolean  (integer signed)
-;;;   float
-;;;     single-float  (float (bits 32))
-;;;     double-float  (float (bits 64))
-;;;   macptr
-;;;     foreign-value
-;;;       pointer
-;;;       mem-block
-;;;         array
-;;;         record
-;;;         function
-;;;   values
-
-
-;; I think maybe this was only necessary because I wasn't doing install-standard...
-#+try-without (maphash (lambda (k v) (when (typep v 'foreign-integer-type)
-                                       ;; This might be messing up the ordinal scheme,
-                                       ;; figure out what that's about!
-                                       (setf (info-foreign-type-definition k *cvm-ftd*) v)
-                                       (setf (info-foreign-type-kind k *cvm-ftd*) 
-                                             (info-foreign-type-kind k *host-ftd*))))
-                       (ftd-definitions *host-ftd*))
-
 
 (provide "CVM-BACKEND")
