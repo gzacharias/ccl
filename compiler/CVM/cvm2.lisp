@@ -937,33 +937,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;; Foreign fns, macptrs
 
-;; Have all these type htings be one.
-;;(defx862 x862-characterp characterp (seg vreg xfer cc form)
-
-;; HMM, who generates htis.
-;;(defx862 x862-lisptag lisptag (seg vreg xfer node)
-;;(defx862 x862-fulltag fulltag (seg vreg xfer node)
-
-;;(defx862 x862-typecode typecode (seg vreg xfer node)
-
-  ;; (x862-%immediate-store seg vreg xfer bits ptr offset val)
-;; These will be replaced by integers once everything settles.  Make them negative so can
-;; distinguish from memory block case.
-;;;; *** TODO GET RID OF THIS
-(defconstant $ff-signed8 '$ff-signed8)
-(defconstant $ff-unsigned8 '$ff-unsigned8)
-(defconstant $ff-signed16 '$ff-signed16)
-(defconstant $ff-unsigned16 '$ff-unsigned16)
-(defconstant $ff-signed32 '$ff-signed32)
-(defconstant $ff-unsigned32 '$ff-unsigned32)
-(defconstant $ff-signed64 '$ff-signed64)
-(defconstant $ff-unsigned64 '$ff-unsigned64)
-(defconstant $ff-single-float '$ff-single-float)
-(defconstant $ff-double-float '$ff-double-float)
-(defconstant $ff-fixnum '$ff-fixnum)
-(defconstant $ff-address '$ff-address)
-(defconstant $ff-void '$ff-void)
-
 ;; This is just to allow some constant folding...
 (defev2 %macptrptr% (form)
   (ev2-form form))
@@ -993,7 +966,7 @@
     (%immediate-inc-ptr
      `($BS-INC-MACPTR ,@(mapcar #'ev2-form (acode-operands arg))))
     (immediate-get-ptr
-     `($BS-macptr-get ,@(mapcar #'ev2-form (acode-operands arg)) $ff-address))))
+     `($BS-macptr-get ,@(mapcar #'ev2-form (acode-operands arg)) :pointer))))
 
 (defev2-fn %immediate-ptr-to-int (form) $BS-MACPTR-TO-INT)
 
@@ -1002,19 +975,21 @@
          (signed (logbitp 5 bits))
          (size (logand 15 bits))
          (ffsize (if fixnump
-                   $ff-fixnum
+                   (target-word-size-case
+                    (64 :int64)
+                    (32 :int32))
                    (ecase size
-                     (8 (if signed $ff-signed64 $ff-unsigned64))
-                     (4 (if signed $ff-signed32 $ff-unsigned32))
-                     (2 (if signed $ff-signed16 $ff-unsigned16))
-                     (1 (if signed $ff-signed8 $ff-unsigned8))))))
+                     (8 (if signed :int64 :uint64))
+                     (4 (if signed :int32 :uint32))
+                     (2 (if signed :int16 :uint16))
+                     (1 (if signed :int8 :uint8))))))
     `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) ,ffsize)))
 
 (defev2 %get-double-float (macptr offset)
-  `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) ,$ff-double-float))
+  `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) :double))
 
 (defev2 %get-single-float (macptr offset)
-  `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) ,$ff-single-float))
+  `($BS-macptr-get ,(ev2-form macptr) ,(ev2-form offset) :float))
 
 (defev2-fn %get-bit (macptr bit-offset) $BS-macptr-get-bit)
 (defev2-fn %set-bit (macptr bit-offset val) $BS-macptr-set-bit)
@@ -1040,18 +1015,18 @@
   (let* ((size (logand #xF bits)) ;; 0 means ...
          (signed (not (logbitp 5 bits)))
          (ffsize (ecase size
-                   (8 (if signed $ff-signed64 $ff-unsigned64))
-                   (4 (if signed $ff-signed32 $ff-unsigned32))
-                   (2 (if signed $ff-signed16 $ff-unsigned16))
-                   (1 (if signed $ff-signed8 $ff-unsigned8))
-                   (0 (assert signed) $ff-address))))
+                   (8 (if signed :int64 :uint64))
+                   (4 (if signed :int32 :uint32))
+                   (2 (if signed :int16 :uint16))
+                   (1 (if signed :int8 :uint8))
+                   (0 (assert signed) :pointer))))
     `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) ,ffsize ,(ev2-form val))))
 
 (defev2 %set-double-float (macptr offset val)
-  `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) ,$ff-double-float ,(ev2-form val)))
+  `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) :double ,(ev2-form val)))
 
 (defev2 %set-single-float (macptr offset val)
-  `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) ,$ff-single-float ,(ev2-form val)))
+  `($BS-macptr-set ,(ev2-form macptr) ,(ev2-form offset) :float ,(ev2-form val)))
 
 (defev2 builtin-call (index arglist);; x862-builtin-call
   ;; I think this was just an optimization to save space by having a subprim call the function
@@ -1081,20 +1056,20 @@
   (flet ((ffspec (spec)
            (case spec
              ((nil) (target-word-size-case
-                     (64 $ff-signed64)
-                     (32 $ff-signed32)))
-             (:signed-byte $ff-signed8)
-             (:unsigned-byte $ff-unsigned8)
-             (:signed-halfword $ff-signed16)
-             (:unsigned-halfword $ff-unsigned16)
-             (:signed-fullword $ff-signed32)
-             (:unsigned-fullword $ff-unsigned32)
-             (:signed-doubleword $ff-signed64)
-             (:unsigned-doubleword $ff-unsigned64)
-             (:single-float $ff-single-float)
-             (:double-float $ff-double-float)
-             (:address $ff-address)
-             (:void $ff-void)
+                     (64 :int64)
+                     (32 :int32)))
+             (:signed-byte :int8)
+             (:unsigned-byte :uint8)
+             (:signed-halfword :int16)
+             (:unsigned-halfword :uint16)
+             (:signed-fullword :int32)
+             (:unsigned-fullword :uint32)
+             (:signed-doubleword :int64)
+             (:unsigned-doubleword :uint64)
+             (:single-float :float)
+             (:double-float :double)
+             (:address :pointer)
+             (:void :void)
              (t (require-type spec 'unsigned-byte)))))
     (let* ((argspecs (map 'list #'ffspec argspecs))
            (resultspec (ffspec resultspec))
