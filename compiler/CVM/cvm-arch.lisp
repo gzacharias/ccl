@@ -24,8 +24,6 @@
 
 (in-package "CVM")
 
-;;; *** Copied from bsvm.lisp
-
 (defconstant fulltag-even-fixnum 0)
 (defconstant fulltag-single-float 1)
 (defconstant fulltag-character 2)

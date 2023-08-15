@@ -54,7 +54,7 @@
                 :p2-dispatch #(unknown) ;; not referenced - can't use 'unknown because of tyep decl on slot
                 :p2-vinsn-templates (make-hash-table) ;; not referenced - can't use 'unknown because of tyep decl on slot
                 :p2-template-hash-name 'unknown ;;'*arm-vinsn-templates*
-                :p2-compile 'ev2-compile
+                :p2-compile 'cvm2-compile
                 :target-specific-features
                 '(:cvm :cvm-target :darwin-target :darwincvm-target
                        ;; Who wants to know about endianness?
@@ -161,8 +161,8 @@
                 cvm-get-kernel-global-ptr
                 cvm-xdisassemble
 
-                make-bslambda-lfun
-                lfun-bslambda))
+                make-bclambda-lfun
+                lfun-bclambda))
 
 
 (defun %deferred-load-record (name)
