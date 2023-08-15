@@ -99,10 +99,10 @@
                                       :target :darwincvm
                                       :keep-lambda *save-definitions*
                                       :keep-symbols *save-local-symbols*)))
-         (bslambda (lfun-bslambda fn)))
+         (bclambda (lfun-bclambda fn)))
     (if print
-      (pprint bslambda)
-      bslambda)))
+      (pprint bclambda)
+      bclambda)))
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,15 +116,15 @@
 
 ;; Really would be so much easier to intercept this in fcomp-form-1
 (defun set-package-call-p (fn)
-  (let ((bslambda (lfun-bslambda fn)))
-    (destructuring-bind (name argspecs body nlocals) (cdr bslambda)
-      (when (and (equal name '($bs-quote nil))
+  (let ((bclambda (lfun-bclambda fn)))
+    (destructuring-bind (name argspecs body nlocals) (cdr bclambda)
+      (when (and (equal name '($bc-quote nil))
                  (every #'null (butlast argspecs))
                  (zerop nlocals)
                  (eql (length body) 3)
-                 (eq (car body) '$bs-funcall)
-                 (equal (cadr body) '($bs-quote ccl::set-package))
-                 (eq (car (caddr body)) '$bs-quote))
+                 (eq (car body) '$bc-funcall)
+                 (equal (cadr body) '($bc-quote ccl::set-package))
+                 (eq (car (caddr body)) '$bc-quote))
         (cadr (caddr body))))))
         
 
@@ -162,7 +162,7 @@
                              ((eq op $fasl-macro) '$fasl-defmacro)
                              (t (error "unsupported toplevel form ~s" form)))
         when bs-opcode
-        ;; Ugh, wait, if all of them will be $BS-QUOTE, why do we bother???
+        ;; Ugh, wait, if all of them will be $BC-QUOTE, why do we bother???
         do (write (cons bs-opcode (mapcar #'(lambda (arg)
                                               (let ((*ev2-bsquote* t))
                                                 (ev2-maker-form arg)))
@@ -261,11 +261,11 @@
              (ev2-maybe-store `(make-symbol ,(symbol-name sym)) store-index))
             (t
              ;; Don't bother storing interned symbols
-             (assert (or (eq (symbol-package sym) (symbol-package '$bs-quote))
+             (assert (or (eq (symbol-package sym) (symbol-package '$bc-quote))
                          (eq (symbol-package sym) *keyword-package*)))
              (when store-index
-               (unless (or (eq sym 'bslambda)
-                           (string= "$BS-" (string sym) :end2 4)
+               (unless (or (eq sym 'bclambda)
+                           (string= "$BC-" (string sym) :end2 4)
                            ;; FFI types
                            (member sym '(:int64 :int32 :int16 :int8 :uint64 :uint32 :uint16 :uint8 :float :double :pointer  :void)))
                  (format *trace-output* "~&NOT storing ~s" sym)
@@ -346,14 +346,14 @@
          (assert *ev2-bsquote*)
          (check-type (car cons) symbol)
          (ev2-maybe-store `($fs-istruct-cell ,(ev2-maker-form (car cons))) store-index))
-        ((and (not *ev2-bsquote*) (eq (car cons) '$BS-QUOTE))
+        ((and (not *ev2-bsquote*) (eq (car cons) '$BC-QUOTE))
          (assert (and (cdr cons) (not (cddr cons))))
          (assert (not (gethash (cdr cons) *ev2-fcomp-hash*)))
          (let ((val-maker (let ((*ev2-bsquote* t))
                             (ev2-maker-form (cadr cons)))))
            (if store-index
-             `(rplacd ,(ev2-maybe-store '(list '$BS-QUOTE) store-index) (list ,val-maker))
-             `(list '$BS-QUOTE ,val-maker))))
+             `(rplacd ,(ev2-maybe-store '(list '$BC-QUOTE) store-index) (list ,val-maker))
+             `(list '$BC-QUOTE ,val-maker))))
         (store-index
          `(rplacd (rplaca ,(ev2-maybe-store '(cons nil nil) store-index)
                           ,(ev2-maker-form (car cons)))
@@ -365,8 +365,8 @@
 
 (defun ev2-function-maker (fn store-index)
   (assert *ev2-bsquote*)
-  (let ((bslambda (lfun-bslambda fn)))
+  (let ((bclambda (lfun-bclambda fn)))
     (let ((*ev2-bsquote* nil))
       `($fs-init-function ,(ev2-maybe-store '($fs-cons-function) store-index)
-                         ,(ev2-maker-form bslambda)))))
+                         ,(ev2-maker-form bclambda)))))
 
