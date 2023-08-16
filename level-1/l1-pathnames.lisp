@@ -694,7 +694,7 @@
 
 
 (defparameter *module-search-path* (list
-                                    #+cvm-target (cons-pathname '(:absolute "cvmsrcs") nil "cvmsrc" "ccl")
+                                    #+cvm-target (cons-pathname '(:absolute "cvmsrcs") nil "bc" "ccl")
                                     (cons-pathname '(:absolute "bin") nil nil "ccl")
                                     (cons-pathname '(:absolute "openmcl" "modules") nil nil "home")
                                     (cons-pathname '(:absolute "lib") nil nil "ccl")
