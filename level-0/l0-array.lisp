@@ -189,6 +189,37 @@
      (complex double-float)
      bit))
 
+#+cvm-target
+(defconstant cvm::*array-element-types*
+  '#.(loop with arr = (make-array 256)
+      for subtag from 0 below 255
+      do (setf (%svref arr subtag)
+               (macrolet ((xcase (subtag &rest clauses)
+                            `(cond
+                              ,@(mapcar #'(lambda (clause)
+                                            (destructuring-bind (tag type) clause
+                                              (setq tag (intern (%str-cat "SUBTAG-" (string tag)) :cvm))
+                                              `((eq ,subtag ,tag) ',type)))
+                                        clauses)
+                              (t 'unused))))
+                 (xcase subtag
+                        (complex-double-float-vector (complex double-float))
+                        (complex-single-float-vector (complex single-float))
+                        (signed-64-bit-vector (signed-byte 64))
+                        (unsigned-64-bit-vector (unsigned-byte 64))
+                        (signed-32-bit-vector (signed-byte 32))
+                        (unsigned-32-bit-vector (unsigned-byte 32))
+                        (signed-16-bit-vector (signed-byte 16))
+                        (unsigned-16-bit-vector (unsigned-byte 16))
+                        (signed-8-bit-vector (signed-byte 8))
+                        (unsigned-8-bit-vector (unsigned-byte 8))
+                        (bit-vector bit)
+                        (simple-string character)
+                        (fixnum-vector fixnum)
+                        (single-float-vector single-float)
+                        (double-float-vector double-float)
+                        (simple-vector t))))
+      finally (return arr)))
 
 (defun array-element-type (array)
   "Return the type of the elements of the array"
@@ -221,6 +252,8 @@
       #+arm-target
       (svref arm::*immheader-array-types*
              (ash (the fixnum (- subtag arm::min-cl-ivector-subtag)) -3))
+      #+cvm-target
+      (svref cvm::*array-element-types* subtag)
       )))
 
 
