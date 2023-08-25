@@ -1378,7 +1378,6 @@ Which one name refers to depends on foreign-type-spec in the obvious manner."
      (%foreign-field-offset-form (foreign-pointer-type-to type) field-name))))
 
 (defun %foreign-access-form (base-form type bit-offset accessors)
-  ;;; *** TODO: maybe don't need all these other patches now
   (when (and (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
              (typep type 'foreign-record-type))
     (return-from %foreign-access-form
