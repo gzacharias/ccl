@@ -353,6 +353,11 @@ present and false otherwise. This variable shouldn't be set by user code.")
 	(bin-load-provide "ARM-DISASSEMBLE" "arm-disassemble")
 	(bin-load-provide "ARM-LAPMACROS" "arm-lapmacros"))
 
+      #+cvm-target
+      (progn
+        (bin-load-provide "CVM-FCOMP" "cvm-fcomp"))
+
+
       (bin-load-provide "FOREIGN-TYPES" "foreign-types")
       (install-standard-foreign-types *host-ftd*)
       
