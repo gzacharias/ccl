@@ -463,7 +463,9 @@ Will differ from *compiling-file* during an INCLUDE")
 (defun fcomp-read-loop (filename orig-file orig-offset env processing-mode)
   (when *compile-verbose*
     (format t "~&;~A ~S..."
-            (if (eq filename *compiling-file*) "Compiling" " Including")
+            (if (eq filename *compiling-file*)
+              (if (eq *fasl-backend* *host-backend*) "Compiling" "Cross compiling")
+              " Including")
             filename))
   (with-open-file (stream filename
                           :element-type 'base-char
