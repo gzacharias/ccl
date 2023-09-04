@@ -298,6 +298,9 @@
         (report-bad-arg array 'array)))))
 
 
+(defun array-with-fill-pointer-p (thing)
+  (and (typep thing 'array) (array-has-fill-pointer-p thing)))
+
 (defun fill-pointer (array)
   "Return the FILL-POINTER of the given VECTOR."
   (let* ((typecode (typecode array)))
@@ -305,7 +308,7 @@
     (if (and (= typecode target::subtag-vectorH)
              (logbitp $arh_fill_bit (the fixnum (%svref array target::vectorH.flags-cell))))
       (%svref array target::vectorH.logsize-cell)
-      (report-bad-arg array '(and array (satisfies array-has-fill-pointer-p))))))
+      (report-bad-arg array '(satisfies array-with-fill-pointer-p)))))
 
 (defun set-fill-pointer (array value)
   (let* ((typecode (typecode array)))
