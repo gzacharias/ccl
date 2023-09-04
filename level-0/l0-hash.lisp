@@ -1932,7 +1932,18 @@ before doing so.")
                      (ash 1 x8664::tag-imm-0)
                      (ash 1 x8664::tag-imm-1)))))
 
-
+#+cvm-target
+(defun immediate-p (thing)
+  (let* ((tag (fulltag thing)))
+    (declare (type (unsigned-byte 4) tag))
+    (logbitp tag
+             (logior (ash 1 cvm::fulltag-even-fixnum)
+                     (ash 1 cvm::fulltag-odd-fixnum)
+                     (ash 1 cvm::fulltag-single-float)
+                     (ash 1 cvm::fulltag-character)
+                     (ash 1 cvm::fulltag-immediate)))))
+                     
+                     
 
 (defun %cons-nhash-vector (size &optional (flags 0))
   (declare (fixnum size))
