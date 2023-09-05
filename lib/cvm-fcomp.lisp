@@ -11,39 +11,20 @@
     vinsn
     reg))
 
-(import 'compile-cvm :cl-user)
-
-;; So, this is called for cross-compiling cvm when it's running in some regular CCL.
-;; It will cross compile and put output in ccl:cvmsrcs;
-;;  this output should then get archived somewhere, like an IMAGE, and then will be used
-;;   to load cvm into a VM.
-;;   SO now have have ccl running where darwincvm is the host system.  We want to be
-;;    able to rebuild it, incase the stuff ccl:cvmsrcs; got old.
-
-;;    So there want to run native, and maybe rebuild-ccl?  this will put the "fasl" files in all the
-;;     usual places it puts fasl files.  have to replace the xloading of level-0, but otherwise should be ok.
-;;   Then instead of building an image, we put all the fasls in ccl:cvmsrcs; rebuild-ccl
-;; HAVE TO put the cvmsrcs file elsewhere because rebuild-ccl :clean deletes ccl:**;*.<fasl>
-;; So ok, it does COMPILE-CCL, then XLOAD-LEVEL-0,
-;;;   THEN need to factor out the RELOAD part, which runs external program to build the image from the fasls.
-;;;   ;; OK, have image name be "cvmsrcs.image", and copy stuff into there.
-
-;;; ONCE have recompilation working, natively in the VM,
-;;; next step is cross compiling darwinx8664.
-
-;; This is used to cross compile cvm to get initial image.
+;; This is used to cross compile cvm to get initial image. But should also be callable on cvm just to recompile.
+;; Output files to ccl:cvmsrcs; unless cross compiling and clean = t, then output to ccl:xcvmsrcs; and copy to ccl:cvmsrcs;
 (defun compile-cvm (&optional force)
-  (load-cvm-target)
+  #-cvm-target (load-cvm-target)
   ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
-  (let ((*warn-if-redefine-kernel* nil))
-    (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-    (load "ccl:lib;compile-ccl.lisp")
-    ;(load "ccl:lib;macros.lisp")
-    ;(load "ccl:lib;foreign-types.lisp")
-    ;(load "ccl:lib;db-io.lisp")
-    ;(load "ccl:library;sockets.lisp")
-    ;(load "ccl:lib;nfcomp.lisp")
-    )
+  #-cvm-target (let ((*warn-if-redefine-kernel* nil))
+                 (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
+                 (load "ccl:lib;compile-ccl.lisp")
+                 ;(load "ccl:lib;macros.lisp")
+                 ;(load "ccl:lib;foreign-types.lisp")
+                 ;(load "ccl:lib;db-io.lisp")
+                 ;(load "ccl:library;sockets.lisp")
+                 ;(load "ccl:lib;nfcomp.lisp")
+                 )
 
   (let* ((*features* *features*)
          (*save-source-locations* NIL)
@@ -54,39 +35,49 @@
          (*aux-modules* (set-difference *aux-modules* *modules-not-for-cvm*))
          (*code-modules* (set-difference *code-modules* *modules-not-for-cvm*))
          (*compiler-modules* (set-difference *compiler-modules* *modules-not-for-cvm*))
+         (output-dir #+cvm-target "ccl:cvmsrcs;"
+                     #-cvm-target (if force "ccl:xcvmsrcs;" "ccl:cvmsrcs;")) ;; cross compiled sources
          ;; Send all output to cvmsrcs.
          (*ccl-system* (loop for (module fasl . sources) in *ccl-system*
-                         collect (list* module (merge-pathnames "ccl:cvmsrcs;" fasl) sources)))
+                         collect (list* module (merge-pathnames output-dir fasl) sources)))
          ;; (cross-compile-ccl t) will reload sysdef-modules (i.e. systems and compile-ccl) as first thing,
          ;; which would override all our careful rebinding above.
          (*aux-modules* (append *sysdef-modules* *aux-modules*))
          (*sysdef-modules* nil))
 
-    ;; Compile level-0
-    ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
-    (with-global-optimization-settings ()
-      (ensure-directories-exist "ccl:cvmsrcs;level-0;")
-      (when force (mapcar #'delete-file (directory (merge-pathnames "ccl:cvmsrcs;level-0;*"
-                                                                    (backend-target-fasl-pathname *cvm-backend*)))))
-      ;(if force (xload-level-0 :force) (xload-level-0))
-      (let* ((level-0-systems
-              (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
-                nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-                        collect (list (intern (string-upcase (pathname-name src)) :ccl)
-                                      (merge-pathnames "ccl:cvmsrcs;level-0;" src)
-                                      src))))
-             (*ccl-system* (append level-0-systems *ccl-system*))
-             (target (backend-name *cvm-backend*)))
+    (flet ((clean (dir)
+             (mapcar #'delete-file (directory (merge-pathnames (%str-cat dir "*")
+                                                               (backend-target-fasl-pathname *cvm-backend*))
+                                              ;; WOrks around a bug with .#xxx files,
+                                              :follow-links nil))))
+      ;; Compile level-0
+      ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
+      (with-global-optimization-settings ()
+        ;replaces (xload-level-0)
+        (let ((output-dir-0 (%str-cat output-dir "level-0;")))
+          (ensure-directories-exist output-dir-0)
+          (when force (clean output-dir-0))
+          (let* ((level-0-systems
+                  (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
+                    nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
+                            collect (list (intern (string-upcase (pathname-name src)) :ccl)
+                                          (merge-pathnames output-dir-0 src)
+                                          src))))
+                 (*ccl-system* (append level-0-systems *ccl-system*))
+                 (target (backend-name *cvm-backend*)))
+            
+            (with-cross-compilation-target (target)
+              (let ((*target-backend* *cvm-backend*))
+                (target-compile-modules (mapcar #'car level-0-systems) target force)))))
+        ;; Now compile everything else
+        (when force (clean output-dir))
+        (cross-compile-ccl :darwincvm (not (null force)))
+        #-cvm-target (when force
+                       (let ((dest "ccl:cvmsrcs;"))
+                         (ensure-directories-exist dest)
+                         (clean (%str-cat dest "**;"))
+                         (recursive-copy-directory output-dir dest :if-exists :overwrite)))))))
 
-        (with-cross-compilation-target (target)
-          (let ((*target-backend* *cvm-backend*))
-            (target-compile-modules (mapcar #'car level-0-systems) target force))))
-
-
-      (ensure-directories-exist "ccl:cvmsrcs;")
-      (when force (mapcar #'delete-file (directory (merge-pathnames "ccl:cvmsrcs;*"
-                                                                    (backend-target-fasl-pathname *cvm-backend*)))))
-      (cross-compile-ccl :darwincvm (not (null force))))))
 
 
 (defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
@@ -108,11 +99,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; Compiling files
 
-(require 'faslenv "ccl:xdump;faslenv")
+;; Figure out if we need this at runtime
+(eval-when (compile eval)
+  (require 'faslenv "ccl:xdump;faslenv"))
 
 (defvar *ev2-fcomp-hash*)
 (defvar *ev2-fcomp-eref*)
-(defvar *ev2-bsquote*)
+(defvar *ev2-bcquote*)
 
 ;; Really would be so much easier to intercept this in fcomp-form-1
 (defun set-package-call-p (fn)
@@ -131,10 +124,11 @@
 (defun fasl-dump-cvm-file (toplevel-forms hash output-file)
   ;;(assert (equalp (pathname-type output-file) (pathname-type (bscompile-fasl))))
   (with-open-file (outf output-file :direction :output :if-exists :supersede)
-    (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (hash-table-count hash))
+    ;; Potentially might have separate slots for VM and CL versions of the objects, hence 2x
+    (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (* 2 (hash-table-count hash)))
     (let* ((*ev2-fcomp-hash* hash)
            (*ev2-fcomp-eref* -1)
-           (*ev2-bsquote* nil))
+           (*ev2-bcquote* nil))
       (loop for form in toplevel-forms as (op . args) = form
         as bs-opcode = (cond ((eq op $fasl-platform) nil)
                              ((eq op $fasl-src) nil #+NOT-YET '$fasl-record-source)
@@ -142,7 +136,7 @@
                               (check-type (car args) (or source-note null))
                               nil #+NOT-YET '$fasl-toplevel-location nil)
                              ((eq op $fasl-lfuncall)
-                              (check-type (car args) xfunction)
+                              (check-type (car args) (or xfunction function))
                               (let ((pkg (set-package-call-p (car args))))
                                 (if pkg
                                   (progn
@@ -150,7 +144,7 @@
                                     '$fasl-set-package)
                                   `$fasl-funcall)))
                              ((eq op $fasl-defun)
-                              (check-type (car args) xfunction)
+                              (check-type (car args) (or xfunction function))
                               '$fasl-defun)
                              ((eq op $fasl-defvar)
                               '$fasl-defvar)
@@ -164,7 +158,7 @@
         when bs-opcode
         ;; Ugh, wait, if all of them will be $BC-QUOTE, why do we bother???
         do (write (cons bs-opcode (mapcar #'(lambda (arg)
-                                              (let ((*ev2-bsquote* t))
+                                              (let ((*ev2-bcquote* t))
                                                 (ev2-maker-form arg)))
                                           args))
                   :stream outf :pretty t :readably t :structure nil
@@ -172,14 +166,30 @@
         and do (terpri outf)))))
 
 
-(defun ev2-maker-form (obj)
+(defun ev2-fcomp-info (obj)
+  ;; Need to track quoted(VM) and unquoted(CL) objects separately
+  ;; Info #(<quoted-info> <unquoted-info>), or just <info> which is like #(<info> <info>)
   (let ((info (gethash obj *ev2-fcomp-hash*)))
+    (if (vectorp info)
+      (svref info (if *ev2-bcquote* 0 1))
+      info)))
+
+(defun (setf ev2-fcomp-info) (new-info obj)
+  (let ((info (gethash obj *ev2-fcomp-hash*)))
+    (unless (eq new-info info)
+      (unless (vectorp info)
+        (setf (gethash obj *ev2-fcomp-hash*) (setq info (vector info info))))
+      (setf (svref info (if *ev2-bcquote* 0 1)) new-info)))
+  new-info)
+
+(defun ev2-maker-form (obj)
+  (let* ((info (ev2-fcomp-info obj)))
     (cond ((fixnump info) `($fs-ref ,info))
           ((eq info t)
            (let ((store-index (incf *ev2-fcomp-eref*)))
              (when (typep obj '(or (signed-byte 60) character boolean immediate))  ;; don't store immediates
                (setq store-index nil))
-             (setf (gethash obj *ev2-fcomp-hash*) store-index)
+             (setf (ev2-fcomp-info obj) store-index)
              (ev2-maker-dispatch obj store-index)))
           ((null info)
            (ev2-maker-dispatch obj nil))
@@ -187,13 +197,11 @@
            (destructuring-bind (load-form scanned-p referenced-p compiled-initform) info
              (declare (ignore scanned-p))
              ;;(assert scanned-p)
-             ;; If referenced-p is NIL means this FORM is referenced only once, so won't need to store it.
-             ;; If referenced-p is T this means it got referenced more than once.  In this case, load-form info is at least T.
-             (when referenced-p
-               (check-type (gethash load-form *ev2-fcomp-hash*) (or fixnum (eql t))))
              (let ((maker (ev2-maker-form load-form)))
+               ;; Referenced-p NIL means this FORM is referenced only once, so won't need to store it.
+               ;; Referenced-p T means it got referenced more than once.  In this case, load-form must have gotten stored.
                (when referenced-p
-                 (setf (gethash obj *ev2-fcomp-hash*) (gethash load-form *ev2-fcomp-hash*)))
+                 (setf (ev2-fcomp-info obj) (require-type (ev2-fcomp-info load-form) 'fixnum)))
                (if compiled-initform
                  `(prog1 ,maker ,(ev2-maker-form compiled-initform))
                  maker)))))))
@@ -201,14 +209,12 @@
 (defun ev2-maker-dispatch (obj store-index)
   (cond ((typep obj '(or fixnum single-float standard-char boolean)) (ev2-maybe-store obj store-index))
         ((typep obj 'character) (ev2-maybe-store `($fs-char ,(char-code obj)) store-index))
-        ((eq obj (%unbound-marker)) (ev2-maybe-store '($fs-unbound-marker) store-index))
-        ((eq obj (%slot-unbound-marker)) (ev2-maybe-store '($fs-slot-unbound-marker) store-index))
-        ((eq obj (%illegal-marker)) (ev2-maybe-store '($fs-illegal-marker) store-index))
+        ((typep obj 'immediate) (ev2-immediate-maker obj store-index))
         ((typep obj 'number) (ev2-number-maker obj store-index))
         ((consp obj) (ev2-cons-maker obj store-index))
         ((symbolp obj) (ev2-symbol-maker obj store-index))
         ((typep obj 'function) (ev2-function-maker obj store-index))
-        ((typep obj 'xfunction) (ev2-function-maker obj store-index))
+        ((typep obj '(or xfunction function)) (ev2-function-maker obj store-index))
         ((typep obj 'simple-base-string) (ev2-string-maker obj store-index))
         ((typep obj 'simple-vector) (ev2-simple-vector-maker obj store-index))
         ((typep obj '(simple-array * (*))) (ev2-ivector-maker obj store-index))
@@ -218,15 +224,23 @@
         ;; It wouldn't be hard to dump arbitrary gvectors/ivectors, but it's not needed.
         (t (error "invalid constant ref ~s" obj))))
 
+(defun ev2-immediate-maker (obj store-index)
+  (assert *ev2-bcquote*)
+  (cond ((eq obj (%unbound-marker)) (ev2-maybe-store '($fs-unbound-marker) store-index))
+        ((eq obj (%slot-unbound-marker)) (ev2-maybe-store '($fs-slot-unbound-marker) store-index))
+        ((eq obj (%illegal-marker)) (ev2-maybe-store '($fs-illegal-marker) store-index))
+        ((eq obj %unbound-function%) (ev2-maybe-store '($fs-unbound-function) store-index))
+        (t (error "unknown immediate ~s" obj))))
+
 (defun ev2-maybe-store (form store-index)
   (if store-index `($fs-set ,store-index ,form) form))
 
 (defun ev2-string-maker (string store-index)
   (check-type string simple-string)
-  (ev2-maybe-store (if *ev2-bsquote* `($fs-string ,string) string) store-index))
+  (ev2-maybe-store (if *ev2-bcquote* `($fs-string ,string) string) store-index))
 
 (defun ev2-number-maker (number store-index)
-  (if *ev2-bsquote*
+  (if *ev2-bcquote*
     (ev2-uvector-maker (etypecase number
                          (bignum :bignum)
                          (double-float :double-float)
@@ -239,7 +253,7 @@
     (ev2-maybe-store number store-index)))
 
 (defun ev2-package-maker (pkg store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   (ev2-maybe-store `($fs-package ,(ev2-maker-form (package-name pkg))) store-index))
 
 ;; Could output symbols directly...  
@@ -250,12 +264,13 @@
       (progn
         (assert (null store-index)) ;; sym never got scanned so shouldn't have a store-index
         (ev2-maker-form inverse))
-      (cond (*ev2-bsquote*
+      (cond (*ev2-bcquote*
              (ev2-maybe-store
               `($fs-symbol ,(ev2-maker-form (symbol-name sym))
                            ,(ev2-maker-form (symbol-package sym)))
               store-index))
             ((null (symbol-package sym))  ;; gensyms are used as tags in tagbody
+             (error "Who's using gensyms?") ;; not anymore.
              (unless store-index
                (error "An unstored uninterned symbol??? ~s" sym))
              (ev2-maybe-store `(make-symbol ,(symbol-name sym)) store-index))
@@ -264,13 +279,11 @@
              (assert (or (eq (symbol-package sym) (symbol-package '$bc-quote))
                          (eq (symbol-package sym) *keyword-package*)))
              (when store-index
-               (unless (or (eq sym 'bclambda)
-                           (string= "$BC-" (string sym) :end2 4)
-                           ;; FFI types
-                           (member sym '(:int64 :int32 :int16 :int8 :uint64 :uint32 :uint16 :uint8 :float :double :pointer  :void)))
+               ;; if change this, also change make-bclambda-lfun
+               (unless (or (eq sym 'bclambda) (string= "$BC-" (string sym) :end2 4))
                  (format *trace-output* "~&NOT storing ~s" sym)
                  (break "How did this find its way here?"))
-               (remhash sym *ev2-fcomp-hash*))
+               (setf (ev2-fcomp-info sym) nil))
              (if (keywordp sym) sym `(quote ,sym)))))))
 
 
@@ -296,7 +309,7 @@
       (error "unexpected array element type ~s" (array-element-type arr))))
 
 (defun ev2-uvector-maker (type-key uvec store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   `($fs-init-uvector ,(ev2-maybe-store
                        `($fs-make-uvector ,type-key ,(uvsize uvec))
                        store-index)
@@ -305,20 +318,20 @@
 
 (defun ev2-simple-vector-maker (vector store-index)
   (check-type vector simple-vector)
-  (cond (*ev2-bsquote*
+  (cond (*ev2-bcquote*
          (ev2-uvector-maker :simple-vector vector store-index))
         (t
          (assert (not store-index)) ;; could support but not needed
          `(vector ,@(map 'list #'ev2-maker-form vector)))))
 
 (defun ev2-ivector-maker (vector store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   (check-type vector ivector)
   (ev2-uvector-maker (ev2-element-type-keyword vector) vector store-index))
 
 ;; It's not unusual to have 2-dim array immediates...  But maybe not in CCL sources?
 (defun ev2-array-maker (arr store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   (check-type arr simple-array)
   (let ((type (array-element-type arr)))
     (assert (or (eq type t) (subtypep type '(or number character)))))
@@ -329,13 +342,13 @@
                          collect (ev2-maker-form (row-major-aref arr i))))))
 
 (defun ev2-istruct-maker (istruct store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   ;; Assume istruct layout is the same everywhere.
   (ev2-uvector-maker :istruct istruct store-index))
 
 (defun ev2-cons-maker (cons store-index)
   (cond ((eq (car cons) cfasl-load-time-eval-sym)
-         (assert *ev2-bsquote*)
+         (assert *ev2-bcquote*)
          (destructuring-bind (form) (cdr cons)
            (ev2-maybe-store
             (if (funcall-lfun-p form)
@@ -343,13 +356,13 @@
               `($fs-eval ,(ev2-maker-form form)))
             store-index)))
         ((istruct-cell-p cons)
-         (assert *ev2-bsquote*)
+         (assert *ev2-bcquote*)
          (check-type (car cons) symbol)
          (ev2-maybe-store `($fs-istruct-cell ,(ev2-maker-form (car cons))) store-index))
-        ((and (not *ev2-bsquote*) (eq (car cons) '$BC-QUOTE))
+        ((and (not *ev2-bcquote*) (eq (car cons) '$BC-QUOTE))
          (assert (and (cdr cons) (not (cddr cons))))
-         (assert (not (gethash (cdr cons) *ev2-fcomp-hash*)))
-         (let ((val-maker (let ((*ev2-bsquote* t))
+         (assert (not (ev2-fcomp-info (cdr cons))))
+         (let ((val-maker (let ((*ev2-bcquote* t))
                             (ev2-maker-form (cadr cons)))))
            (if store-index
              `(rplacd ,(ev2-maybe-store '(list '$BC-QUOTE) store-index) (list ,val-maker))
@@ -360,13 +373,14 @@
                   ,(ev2-maker-form (cdr cons))))
         (t (let* ((rest cons)
                   (val-forms (loop collect (ev2-maker-form (pop rest))
-                               while (and (consp rest) (not (gethash rest *ev2-fcomp-hash*))))))
+                               while (and (consp rest) (not (ev2-fcomp-info rest))))))
              `(list* ,@val-forms ,(ev2-maker-form rest))))))
 
 (defun ev2-function-maker (fn store-index)
-  (assert *ev2-bsquote*)
+  (assert *ev2-bcquote*)
   (let ((bclambda (lfun-bclambda fn)))
-    (let ((*ev2-bsquote* nil))
+    (assert (consp bclambda))
+    (let ((*ev2-bcquote* nil))
       `($fs-init-function ,(ev2-maybe-store '($fs-cons-function) store-index)
                          ,(ev2-maker-form bclambda)))))
 
