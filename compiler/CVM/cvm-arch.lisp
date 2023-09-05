@@ -272,6 +272,8 @@
   rwlock.malloced-ptr-NOT-REFERENCED)
 (defconstant rwlock.size 64)
 
+(defconstant value-cell.value-cell 0)
+
 (defmacro def-uvector-object (name &rest slots)
   `(progn
      (ccl::defenum ()

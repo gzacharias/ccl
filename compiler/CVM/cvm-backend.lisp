@@ -16,7 +16,7 @@
 
 (in-package "CCL")
 
-(next-nx-defops)
+#+cvm-target (next-nx-defops)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require "BACKEND"))
@@ -59,7 +59,7 @@
                 '(:cvm :cvm-target :darwin-target :darwincvm-target
                        ;; Who wants to know about endianness?
                        :64-bit-target :little-endian-target)
-                :target-fasl-pathname (make-pathname :type "cvmsrc")
+                :target-fasl-pathname (make-pathname :type "bc")
                 :target-platform (logior platform-word-size-64
                                          platform-cpu-cvm
                                          platform-os-darwin)
@@ -89,14 +89,6 @@
                        :callback-bindings-function 'unknown ;; (intern ..
                        :callback-return-value-function 'unknown;; (intern
                        )))
-    ;; L1-init calls (%foreign-type-or-record-size :timeval :bytes) At READ time. Kludge it,
-    ;;  makes sure to give it enough bits for any reasonable :timeval structure...
-    ;;; TODO: ** I think this is fixed now.
-    ;; HOPEFULLY won't need this because make-foreign-record-type is not defined  yet.
-    #+try-without (setf (gethash :timeval (ftd-struct-definitions ftd))
-                        (make-foreign-record-type :kind :struct
-                                                  :name :timeval
-                                                  :bits 1024))
     ;; This might not be necessary any more.  TODO: TRY WITHOUT.
     ;;  With arrays, it might be trying to get the size at compile time... check it out
     ;; called twice, (:array (:struct :pollfd) 1) and (:array :int)
@@ -117,7 +109,6 @@
                    (let ((ftd (make-cvm-ftd)))
                      (install-standard-foreign-types ftd) ;; l1-boot-2 calls this after loading foreign-types
                      ftd))
-#-cvm-target (format t "~&have set ftd for ~s" *cvm-backend*)
 
 ;; l1-aprims does this:
 ;(defpackage #.(ftd-interface-package-name (backend-target-foreign-type-data *target-backend*))
@@ -211,25 +202,41 @@
         collect `(setf ,(%deferred-foreign-access-form ptr record-name 0 (list key))
                        ,valform)))))
 
+;; foreign-type-to-repesentation-type gets into pasing and databases and stuff we don't support.
+;; Just kludge it.
+(defparameter *foreign-type-to-representation-type*
+  '((:int . :signed-fullword)
+    (:signed . :signed-fullword)
+    (:unsigned . :unsigned-fullword)
+    (:ssize_t . :signed-doubleword)
+    (:off_t . :signed-doubleword)
+    (:mode_t . :unsigned-halfword)
+    (:socklen_t . :unsigned-fullword)))
+
 ;; x8664::expand-ff-call
 (defun cvm-expand-ff-call (callform args)
-  ;;(error "who calls this")
-  ;;; *** If this is not enough, do the comiler macro and skip this.
   (let ((ffn (cadr callform)))
     (when (and (consp ffn) (eq (car ffn) '%kernel-import))
+      ;; Need to pass in the name of the kernel fn not the offset.  TODO: just define all the kernel constants,
+      ;; like (defconstant cvm::kernel-import-lisp-opendir 'cvm::kernel-import-lisp-opendir) etc. and leave this alone.
       (destructuring-bind (offset) (cdr ffn)
         (assert (symbolp offset))
-        (setq callform (list* (car callform)
-                              `(cvm-%kernel-import ',offset)
-                              (cddr callform))))))
-  ;; Cheat a little.  All this does is standardize the keywords, like :int => :signed-fullword
-  (let ((*target-ftd* (backend-target-foreign-type-data *host-backend*)))
-    (funcall (ftd-ff-call-expand-function *target-ftd*)
-             callform args)))
+        (setq callform `(,(car callform) (cvm-%kernel-import ',offset) ,@(cddr callform))))))
+  (flet ((std (type-spec)
+           ;; Don't want to call foreign-type-to-representation-type because that gets into parsing and databases and stuff...
+           ; (foreign-type-to-representation-type type-spec)
+           (if (or (member type-spec *foreign-representation-type-keywords* :test #'eq)
+                   (typep type-spec 'unsigned-byte))
+             type-spec
+             (or (cdr (assoc type-spec *foreign-type-to-representation-type*))
+                 (error "Unknown type spec ~s" type-spec)))))
+    `(,@callform ,@(loop while (cdr args) collect (std (pop args)) collect (pop args))
+                 ,(if args (std (car args)) (std :void)))))
 
-;; DOn't want to redefine ccl function, so..  For debugging only.
-(define-compiler-macro %kernel-import (offset)
+;; Don't want to redefine ccl function, so..  For debugging only.
+(define-compiler-macro %kernel-import (&whole call offset)
   (when (eq *target-backend* *cvm-backend*)
-    (break "who still calls this? ~s" offset)))
+    (break "who still calls this? ~s" offset))
+  call)
 
 (provide "CVM-BACKEND")

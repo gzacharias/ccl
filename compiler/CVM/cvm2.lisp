@@ -16,6 +16,9 @@
 (defvar *cvm2-lex-vars*)
 (defvar *cvm2-tags*)
 
+;; Must match *ff-types* in cvm:bceval.lisp
+(defenum (:prefix "FF-" :start 256) int64 int32 int16 int8 uint64 uint32 uint16 uint8 float double pointer void)
+
 (defun cvm2-lex-var-p (var)
   (check-type var var)
   (or (cvm2-var-inherited-from var)
@@ -97,7 +100,7 @@
 
     ;; now that we have an lfun, fixup any forward refs to the fn.
     (loop for ref in (afunc-fwd-refs afunc)
-      do (assert (equal ref `($bc-quote ,afunc)))
+      do (assert (equal ref (cvm2-quote afunc)))
       do (setf (cadr ref) (afunc-lfun afunc))))
   afunc)
 
@@ -137,9 +140,9 @@
     `(progn
        ,@(if (consp operator-name-or-names)
            (loop for operator in operator-name-or-names
-             collect `(record-source-file ',operator 'bscompile-operator))
-           (list `(record-source-file ',operator-name-or-names 'bscompile-operator)))
-       (let ((fn (nfunction (bscompile-operator ,operator-name-or-names)
+             collect `(record-source-file ',operator 'bc-op))
+           (list `(record-source-file ',operator-name-or-names 'bc-op)))
+       (let ((fn (nfunction (bc-op ,operator-name-or-names)
                             (lambda ,arglist
                               ,@decls 
                               (block ,(if (consp operator-name-or-names)
@@ -165,7 +168,7 @@
 ;;  (assert (fixnump (nx-var-bits (require-type var 'var)))) ;; not inherited
   (if (cvm2-lex-var-p var)
     (assign-lex-vcell var)
-    (var-name var)))
+    (cvm2-quote (var-name var))))
 
 
 (defun cvm2-lambda-form (name fbits inh req opt rest keys auxen acode p2decls &aux lexpr (bits 0))
@@ -306,16 +309,16 @@
                                             ;;mostly don't bother, except we don't want to be consing
                                             ;; gc'able macptrs
                                             (eq (car init-form) '$bc-new-macptr))
-                                     (list bv)
+                                     `(:stack-block ,bv)
                                      bv)
                                    init-form)))
          (body-form (cvm2-form body)))
     (cond ((null bindings) body-form)
-          ((assoc '*interrupt-level* bindings)
+          ((assoc '($bc-quote *interrupt-level*) bindings :test 'equal)
            (assert (eql (length bindings) 1))
            `($bc-with-interrupt-level ,(cadr (car bindings)) ,body-form))
           ;; If there are no special variables, can treat a let as let*
-          ((or seq? (loop for b in bindings never (symbolp (car b))))
+          ((or seq? (loop for b in bindings always (or (fixnump (car b)) (fixnump (cadr (car b))))))
            (when (eq (car body-form) '$bc-let*)
              (destructuring-bind (inner-bindings inner-form) (cdr body-form)
                (setq bindings (append bindings inner-bindings))
@@ -327,35 +330,49 @@
                                               collect (pop bindings))))
                           (if (null bindings)
                             `($bc-let* ,lex-bindings ,body-form)
-                            (let* ((v (pop bindings))
-                                   (body-form
-                                    (if (consp (car v))
-                                      `($bc-stack-block ,(caar v) ,@(cdr (cadr v))
-                                                        ,(ssplit bindings body-form))
-                                      `($bc-progv ,(cvm2-quote (list (car v))) ($bc-list ,(cadr v))
-                                                  ,(ssplit bindings body-form)))))
-                              (if (null lex-bindings)
-                                body-form
-                                `($bc-let* ,lex-bindings ,body-form))))))))
+                            (destructuring-bind (bv init-form) (pop bindings)
+                              (let* ((inner-form (ssplit bindings body-form))
+                                     (this-form
+                                      (if (eq (car bv) :stack-block) ;; init-form is ($bc-new-macptr ..)
+                                        `($bc-stack-block ,(cadr bv) ,@(cdr init-form) ,inner-form)
+                                        `($bc-progv ($bc-list ,bv) ($bc-list ,init-form) ,inner-form))))
+                                (if (null lex-bindings)
+                                  this-form
+                                  `($bc-let* ,lex-bindings ,this-form)))))))))
              (ssplit bindings body-form)))
-          (t
+          (t ;; here if parallel binding and have at least one special var
+           ;; TODO: could have a $BC-LET that does this at macroexpand time -- then could use local vars instead of having
+           ;; to assign vcells for the temps.  Probably doesn't happen often enough to matter.
            (let ((special-vars ())
                  (special-vals ()))
-             (loop for b in bindings
-               ;; mixing specials and stack block too hard...  Bet it never happens!
-               do (assert (not (consp (car b))))
-               unless (fixnump (car b)) do (let* ((temp (assign-misc-vcell b)))
-                                             (push (car b) special-vars)
-                                             (push `($bc-lref ,temp) special-vals)
-                                             (setf (car b) temp)))
+             (loop for b in bindings as bv = (car b)
+               do (unless (fixnump bv)
+                    ;; mixing specials and stack block too hard...  Bet it never happens!
+                    (assert (not (eq :stack-block (car bv))))
+                    (let* ((temp (assign-misc-vcell bv)))
+                      (push bv special-vars)
+                      (push `($bc-lref ,temp) special-vals)
+                      (setf (car b) temp))))
              (assert special-vars)
              `($bc-let* ,bindings
-                        ($bc-progv ,(cvm2-quote special-vars) ($bc-list ,@special-vals) ,body-form)))))))
+                        ($bc-progv ($bc-list ,@special-vars) ($bc-list ,@special-vals) ,body-form)))))))
 
 (defcvm2 multiple-value-bind (vars val body p2decls)  ;x862-multiple-value-bind
   (declare (ignore p2decls))
-  (assert (cdr vars)) ;; just to see if there's any reason to try to optimize this.
-  `($bc-multiple-value-bind ,(mapcar #'cvm2-binding-var vars) ,(cvm2-form val) ,(cvm2-form body)))
+  (let* ((special-vars ())
+         (special-vals ())
+         (indices (loop for var in vars as bv = (cvm2-binding-var var)
+                    collect (if (fixnump bv)
+                              bv
+                              (let ((temp (assign-misc-vcell bv)))
+                                (push bv special-vars)
+                                (push `($bc-lref ,temp) special-vals)
+                                temp))))
+         (val-form (cvm2-form val))
+         (body-form (cvm2-form body)))
+      (when special-vars
+        (setq body-form `($bc-progv ($bc-list ,@special-vars) ($bc-list ,@special-vals) ,body-form)))
+    `($bc-multiple-value-bind ,indices ,val-form ,body-form)))
 
 (defcvm2 multiple-value-prog1 (exprs)
   (assert exprs)
@@ -828,7 +845,7 @@
 (defcvm2 istruct-typep (cc object type-cell-form) ;;x862-istruct-typep
   (let ((type-cell (acode-immediate-operand type-cell-form)))
     (assert (and (consp type-cell) (symbolp (car type-cell))))
-    (cvm2-boolean-form cc '$bc-istruct-typep (cvm2-form object) `($bc-quote ,(car type-cell)))))
+    (cvm2-boolean-form cc '$bc-istruct-typep (cvm2-form object) (cvm2-quote (car type-cell)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -956,7 +973,7 @@
     (%immediate-inc-ptr
      `($bc-inc-macptr ,@(mapcar #'cvm2-form (acode-operands arg))))
     (immediate-get-ptr
-     `($bc-macptr-get ,@(mapcar #'cvm2-form (acode-operands arg)) :pointer))))
+     `($bc-macptr-get ,@(mapcar #'cvm2-form (acode-operands arg)) ,ff-pointer))))
 
 (defcvm2-fn %immediate-ptr-to-int (form) $bc-macptr-to-int)
 
@@ -966,20 +983,20 @@
          (size (logand 15 bits))
          (ffsize (if fixnump
                    (target-word-size-case
-                    (64 :int64)
-                    (32 :int32))
+                    (64 ff-int64)
+                    (32 ff-int32))
                    (ecase size
-                     (8 (if signed :int64 :uint64))
-                     (4 (if signed :int32 :uint32))
-                     (2 (if signed :int16 :uint16))
-                     (1 (if signed :int8 :uint8))))))
+                     (8 (if signed ff-int64 ff-uint64))
+                     (4 (if signed ff-int32 ff-uint32))
+                     (2 (if signed ff-int16 ff-uint16))
+                     (1 (if signed ff-int8 ff-uint8))))))
     `($bc-macptr-get ,(cvm2-form macptr) ,(cvm2-form offset) ,ffsize)))
 
 (defcvm2 %get-double-float (macptr offset)
-  `($bc-macptr-get ,(cvm2-form macptr) ,(cvm2-form offset) :double))
+  `($bc-macptr-get ,(cvm2-form macptr) ,(cvm2-form offset) ,ff-double))
 
 (defcvm2 %get-single-float (macptr offset)
-  `($bc-macptr-get ,(cvm2-form macptr) ,(cvm2-form offset) :float))
+  `($bc-macptr-get ,(cvm2-form macptr) ,(cvm2-form offset) ,ff-float))
 
 (defcvm2-fn %get-bit (macptr bit-offset) $bc-macptr-get-bit)
 (defcvm2-fn %set-bit (macptr bit-offset val) $bc-macptr-set-bit)
@@ -1005,18 +1022,18 @@
   (let* ((size (logand #xF bits)) ;; 0 means ...
          (signed (not (logbitp 5 bits)))
          (ffsize (ecase size
-                   (8 (if signed :int64 :uint64))
-                   (4 (if signed :int32 :uint32))
-                   (2 (if signed :int16 :uint16))
-                   (1 (if signed :int8 :uint8))
-                   (0 (assert signed) :pointer))))
+                   (8 (if signed ff-int64 ff-uint64))
+                   (4 (if signed ff-int32 ff-uint32))
+                   (2 (if signed ff-int16 ff-uint16))
+                   (1 (if signed ff-int8 ff-uint8))
+                   (0 (assert signed) ff-pointer))))
     `($bc-macptr-set ,(cvm2-form macptr) ,(cvm2-form offset) ,ffsize ,(cvm2-form val))))
 
 (defcvm2 %set-double-float (macptr offset val)
-  `($bc-macptr-set ,(cvm2-form macptr) ,(cvm2-form offset) :double ,(cvm2-form val)))
+  `($bc-macptr-set ,(cvm2-form macptr) ,(cvm2-form offset) ,ff-double ,(cvm2-form val)))
 
 (defcvm2 %set-single-float (macptr offset val)
-  `($bc-macptr-set ,(cvm2-form macptr) ,(cvm2-form offset) :float ,(cvm2-form val)))
+  `($bc-macptr-set ,(cvm2-form macptr) ,(cvm2-form offset) ,ff-float ,(cvm2-form val)))
 
 (defcvm2 builtin-call (index arglist);; x862-builtin-call
   ;; I think this was just an optimization to save space by having a subprim call the function
@@ -1043,30 +1060,29 @@
 (defcvm2 ff-call (address argspecs argvals resultspec &optional monitor)
   (declare (ignore monitor))
   (assert (not (find :void argspecs)))
+  (assert (not (typep resultspec 'unsigned-byte)))
   (flet ((ffspec (spec)
            (case spec
              ((nil) (target-word-size-case
-                     (64 :int64)
-                     (32 :int32)))
-             (:signed-byte :int8)
-             (:unsigned-byte :uint8)
-             (:signed-halfword :int16)
-             (:unsigned-halfword :uint16)
-             (:signed-fullword :int32)
-             (:unsigned-fullword :uint32)
-             (:signed-doubleword :int64)
-             (:unsigned-doubleword :uint64)
-             (:single-float :float)
-             (:double-float :double)
-             (:address :pointer)
-             (:void :void)
+                     (64 ff-int64)
+                     (32 ff-int32)))
+             (:signed-byte ff-int8)
+             (:unsigned-byte ff-uint8)
+             (:signed-halfword ff-int16)
+             (:unsigned-halfword ff-uint16)
+             (:signed-fullword ff-int32)
+             (:unsigned-fullword ff-uint32)
+             (:signed-doubleword ff-int64)
+             (:unsigned-doubleword ff-uint64)
+             (:single-float ff-float)
+             (:double-float ff-double)
+             (:address ff-pointer)
+             (:void ff-void)
              (t (require-type spec 'unsigned-byte)))))
     (let* ((argspecs (map 'list #'ffspec argspecs))
            (resultspec (ffspec resultspec))
            (address-form (cvm2-form address))
            (arg-forms (list argspecs (map 'list #'cvm2-form argvals) resultspec)))
-      (assert (not (typep resultspec 'unsigned-byte)))
-      #+NO (format t "~&FF argspecs: ~s => ~s~%" (remove-duplicates argspecs) resultspec)
       (if (and (eq (first address-form) '$bc-funcall)
                (equal (second address-form) '($bc-quote cvm-%kernel-import))
                (eq (car (third address-form)) '$bc-quote))
