@@ -1760,7 +1760,7 @@ to replace that class with ~s" name old-class new-class)
            (set-nth-immediate f 1 x)
            f)
          #+cvm-target
-         (lambda () x))))
+         (lambda (&rest args) (declare (ignore args)) x))))
 
 
   
