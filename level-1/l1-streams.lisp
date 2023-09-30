@@ -4300,10 +4300,13 @@
 	(stream-position last)
 	0))))
 
+(defun stream-and-output-stream-p (thing)
+  (and (streamp thing) (output-stream-p thing)))
+
 (defun make-broadcast-stream (&rest streams)
   (dolist (s streams (make-instance 'broadcast-stream :streams streams))
     (unless (output-stream-p s)
-      (report-bad-arg s '(satisfies output-stream-p)))))
+      (report-bad-arg s '(satisfies stream-and-output-stream-p)))))
 
 
 
