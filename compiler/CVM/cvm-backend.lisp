@@ -124,7 +124,7 @@
 ;; To be defined in the host.  ***TODO: CHECK THIS ONCE IN A WHILE
 (declaim (ftype function
                 cvm-symbolp
-                cvm-ivectorp
+                cvm-ivector-typecode-p
                 cvm-gvectorp
 
                 cvm-make-combined-method

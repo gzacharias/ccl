@@ -15,3 +15,11 @@
   (ed "ccl:compiler;cvm;cvm-arch.lisp")
   (ed "ccl:compiler:cvm;cvm-backend.lisp")
   (ed "ccl:compiler;cvm;cvm2.lisp"))
+
+
+#-cvm-target (defun cvm-compile (lambda)
+               ;(load-cvm-target)
+               (let ((target (backend-name *cvm-backend*)))
+                 (with-cross-compilation-target (target)
+                   (let ((*target-backend* *cvm-backend*))
+                     (compile-named-function lambda :target target)))))

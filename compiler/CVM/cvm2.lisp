@@ -64,7 +64,6 @@
 
 (defmacro bclambda-bits (bclambda) `(car (last (third ,bclambda))))
 
-;;; *** TODO: rename to cvm2-
 (defun cvm2-compile (afunc &optional lambdaform record-symbols)  ;;x862-compile
   (dolist (a (afunc-inner-functions afunc))
     (unless (afunc-lfun a)
@@ -318,7 +317,7 @@
            (assert (eql (length bindings) 1))
            `($bc-with-interrupt-level ,(cadr (car bindings)) ,body-form))
           ;; If there are no special variables, can treat a let as let*
-          ((or seq? (loop for b in bindings always (or (fixnump (car b)) (fixnump (cadr (car b))))))
+          ((or seq? (loop for (bv) in bindings always (or (fixnump bv) (fixnump (cadr bv)))))
            (when (eq (car body-form) '$bc-let*)
              (destructuring-bind (inner-bindings inner-form) (cdr body-form)
                (setq bindings (append bindings inner-bindings))
@@ -521,10 +520,11 @@
 (defcvm2 fixnum (value) (cvm2-quote value))
 
 (defcvm2 immediate (value) ;; x862-immediate
-  ;; Don't really need to do anything special for loadtime value, it's communicated from
-  ;; compiler pass1 to file-compiler.
-  ;;(if (and (listp value) *load-time-eval-token* (eq (car value) *load-time-eval-token*)) ..)
   (cvm2-quote value))
+
+;; Load time value for when not compiling for file compiler.  Pass 1 already evaluated it
+(defcvm2 load-time-value (form)
+  (cvm2-quote (acode-immediate-operand form)))
 
 (defcvm2 simple-function (afunc) ;; x862-simple-function just does immediate for x862-afunc-lfun-ref
   (afunc-lfun-ref afunc))

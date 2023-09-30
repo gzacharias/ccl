@@ -17,8 +17,8 @@
   #-cvm-target (load-cvm-target)
   ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
   #-cvm-target (let ((*warn-if-redefine-kernel* nil))
-                 (load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-                 (load "ccl:lib;compile-ccl.lisp")
+                 ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
+                 ;(load "ccl:lib;compile-ccl.lisp")
                  ;(load "ccl:lib;macros.lisp")
                  ;(load "ccl:lib;foreign-types.lisp")
                  ;(load "ccl:lib;db-io.lisp")
@@ -43,17 +43,17 @@
          ;; (cross-compile-ccl t) will reload sysdef-modules (i.e. systems and compile-ccl) as first thing,
          ;; which would override all our careful rebinding above.
          (*aux-modules* (append *sysdef-modules* *aux-modules*))
-         (*sysdef-modules* nil))
+         (*sysdef-modules* nil)
+         (target (backend-name *cvm-backend*)))
 
     (flet ((clean (dir)
              (mapcar #'delete-file (directory (merge-pathnames (%str-cat dir "*")
                                                                (backend-target-fasl-pathname *cvm-backend*))
                                               ;; WOrks around a bug with .#xxx files,
                                               :follow-links nil))))
-      ;; Compile level-0
-      ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
       (with-global-optimization-settings ()
-        ;replaces (xload-level-0)
+        ;; Compile level-0  --  replaces (xload-level-0)
+        ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
         (let ((output-dir-0 (%str-cat output-dir "level-0;")))
           (ensure-directories-exist output-dir-0)
           (when force (clean output-dir-0))
@@ -63,15 +63,14 @@
                             collect (list (intern (string-upcase (pathname-name src)) :ccl)
                                           (merge-pathnames output-dir-0 src)
                                           src))))
-                 (*ccl-system* (append level-0-systems *ccl-system*))
-                 (target (backend-name *cvm-backend*)))
+                 (*ccl-system* (append level-0-systems *ccl-system*)))
             
             (with-cross-compilation-target (target)
               (let ((*target-backend* *cvm-backend*))
                 (target-compile-modules (mapcar #'car level-0-systems) target force)))))
         ;; Now compile everything else
         (when force (clean output-dir))
-        (cross-compile-ccl :darwincvm (not (null force)))
+        (cross-compile-ccl target (not (null force)))
         #-cvm-target (when force
                        (let ((dest "ccl:cvmsrcs;"))
                          (ensure-directories-exist dest)
@@ -213,7 +212,6 @@
         ((typep obj 'number) (ev2-number-maker obj store-index))
         ((consp obj) (ev2-cons-maker obj store-index))
         ((symbolp obj) (ev2-symbol-maker obj store-index))
-        ((typep obj 'function) (ev2-function-maker obj store-index))
         ((typep obj '(or xfunction function)) (ev2-function-maker obj store-index))
         ((typep obj 'simple-base-string) (ev2-string-maker obj store-index))
         ((typep obj 'simple-vector) (ev2-simple-vector-maker obj store-index))
@@ -374,7 +372,9 @@
         (t (let* ((rest cons)
                   (val-forms (loop collect (ev2-maker-form (pop rest))
                                while (and (consp rest) (not (ev2-fcomp-info rest))))))
-             `(list* ,@val-forms ,(ev2-maker-form rest))))))
+             (if (null rest)
+               `(list ,@val-forms)
+               `(list* ,@val-forms ,(ev2-maker-form rest)))))))
 
 (defun ev2-function-maker (fn store-index)
   (assert *ev2-bcquote*)

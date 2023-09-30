@@ -281,6 +281,12 @@
                              slots))
      (defconstant ,(ccl::form-symbol name ".ELEMENT-COUNT") ,(length slots))))
 
+(def-uvector-object macptr
+  address
+  domain
+  type
+ )
+
 (def-uvector-object xmacptr
   address
   domain
@@ -489,6 +495,10 @@
 (def-cvm-archmacro ccl::function-vector-to-function (v) v)
 (def-cvm-archmacro ccl::lfun-vector (f) f)
 (def-cvm-archmacro ccl::lfun-vector-lfun (v) v)
+
+;; Not having this errs at compile time, so..
+(def-cvm-archmacro ccl::area-code () 'area.code)
+(def-cvm-archmacro ccl::area-succ () 'area.succ)
 
 (def-cvm-archmacro ccl::nth-immediate (f i)
   `(ccl::%nth-immediate ,f (the fixnum (- (the fixnum ,i) 1))))
