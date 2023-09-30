@@ -1290,6 +1290,10 @@ Will differ from *compiling-file* during an INCLUDE")
         #+x8664-target
         ((#.x8664::fulltag-imm-0
           #.x8664::fulltag-imm-1))
+        #+cvm-target
+        ((#.cvm::lisptag-single-float
+          #.cvm::lisptag-character
+          #.cvm::lisptag-immediate))
         #+arm-target
         (#.arm::tag-imm)
         (t
@@ -1307,7 +1311,7 @@ Will differ from *compiling-file* during an INCLUDE")
                                  (ash 1 x8664::fulltag-immheader-1)
                                  (ash 1 x8664::fulltag-immheader-2))))
            #+cvm-target
-           (cvm-ivectorp exp)
+           (cvm-ivector-typecode-p type-code)
            #+arm-target
            (= (the fixnum (logand type-code arm::fulltagmask)) arm::fulltag-immheader)
            (case type-code
@@ -1346,6 +1350,8 @@ Will differ from *compiling-file* during an INCLUDE")
 	     (#.target::subtag-function (fasl-scan-clfun exp))
              #+x8664-target
              (#.target::tag-function (fasl-scan-clfun exp))
+             #+cvm-target
+             (#.target::subtag-function (fasl-scan-clfun exp))
              (t (fasl-scan-gvector exp)))))))))
               
 
@@ -1380,6 +1386,11 @@ Will differ from *compiling-file* during an INCLUDE")
     (do* ((k ncode-words (1+ k)))
          ((= k size))
       (fasl-scan-form (uvref fv k)))))
+
+#+cvm-target
+(defun fasl-scan-clfun (f)
+  (fasl-scan-gvector f)
+  (map-bclambda-immediates f #'fasl-scan-form))
 
 (defun funcall-lfun-p (form)
   (and (listp form)

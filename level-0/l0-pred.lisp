@@ -228,7 +228,7 @@
         (= fulltag x8664::fulltag-immheader-1)
         (= fulltag x8664::fulltag-immheader-2)))
   #+cvm-target
-  (cvm-ivectorp x)
+  (cvm-ivector-typecode-p (typecode x))
   )
 
 (setf (type-predicate 'ivector) 'ivectorp)

@@ -77,6 +77,9 @@
     #+x86-target :x86-host
     #+x8664-target :x8664-target
     #+x8664-target :x8664-host
+    #+cvm-target :cvm
+    #+cvm-target :cvm-host
+    #+cvm-target :cvm-target
     #+arm-target :arm
     #+arm-target :arm-target
     #+linux-target :linux-host
@@ -109,6 +112,8 @@
     #+darwinx8632-target :darwinx8632-host
     #+darwinx8664-target :darwinx8664-target
     #+darwinx8664-target :darwinx8664-host
+    #+darwincvm-target :darwincvm-target
+    #+darwincvm-target :darwincvm-host
     #+windows-target :windows-host
     #+windows-target :windows-target
     #+win64-target :win64-target
