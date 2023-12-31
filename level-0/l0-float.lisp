@@ -299,7 +299,7 @@
                (set-%double-float-exp result 1) ; scale by float-exp -1
                (%%scale-dfloat! result (+ IEEE-double-float-bias (+ float-exp int)) result)              
                result))
-           (if (> new-exp IEEE-double-float-normal-exponent-max) 
+           (if (and (> new-exp IEEE-double-float-normal-exponent-max) (get-fpu-mode :overflow))
              (error (make-condition 'floating-point-overflow
                                     :operation 'scale-float
                                     :operands (list float int)))
@@ -333,7 +333,7 @@
              #+64-bit-target
              (%%scale-sfloat (set-%short-float-exp float 1)
                              (+ IEEE-single-float-bias (+ float-exp int))))
-           (if (> new-exp IEEE-single-float-normal-exponent-max) 
+           (if (and (> new-exp IEEE-single-float-normal-exponent-max) (get-fpu-mode :overflow))
              (error (make-condition 'floating-point-overflow
                                     :operation 'scale-float
                                     :operands (list float int)))
