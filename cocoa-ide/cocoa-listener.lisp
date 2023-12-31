@@ -417,6 +417,8 @@
         ;(format t "~%About to call map-windows for sender ~S" sender)
         (map-windows #'(lambda (w) (when (and (eq (window-type w)
                                                   (window-type original-window))
+                                              (eq (type-of (#/windowController w))
+                                                  (type-of (#/windowController original-window)))
                                               (not (#/isDocumentEdited w)))
                                      (do-close-window w sender))))
         ;(print "Called map-windows")
