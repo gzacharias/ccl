@@ -27,6 +27,10 @@
   ;(require "CVMENV")
   )
 
+;; we don't load vinsns, which defines this, and it needs to be defined becuase
+;;  compile-named-function establishes a handler and get errors if it's not a valid type.
+(define-condition linear-scan-bailout () ())
+
 
 (defparameter *known-cvm-backends* nil)
 

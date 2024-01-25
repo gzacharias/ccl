@@ -1,83 +1,87 @@
 (in-package :ccl)
 
-(defparameter *modules-not-for-cvm*
-  '(edit-callers
-    cover
-    leaks
-    core-files
-    dominance
-    backtrace-lds ;; either make this load, or get rid of backtrace as well.
-    vreg
-    vinsn
-    reg))
+#+cvm-target
+(defun xload-level-0 (&optional force)
+  (declare (ignore force))
+  (cvm-compile-level-0))
 
-;; This is used to cross compile cvm to get initial image. But should also be callable on cvm just to recompile.
-;; Output files to ccl:cvmsrcs; unless cross compiling and clean = t, then output to ccl:xcvmsrcs; and copy to ccl:cvmsrcs;
-(defun compile-cvm (&optional force)
-  #-cvm-target (load-cvm-target)
+(defun cvm-compile-level-0 ()
+  ;; TODO: Maybe it's time to make a *level-0-files* so don't rely on contents of directories..
+  (assert (eq *target-backend* *cvm-backend*))
+  (let* ((*ccl-system*
+          (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
+            nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
+                    collect (list (intern (string-upcase (pathname-name src)) :ccl)
+                                  (make-pathname :type nil :defaults src)
+                                  src)))))
+    (target-compile-modules (mapcar #'car *ccl-system*) (backend-name *target-backend*) nil)))
+
+#-CVM-TARGET
+(defun cross-compile-cvm (&optional force)
+  (load-cvm-target)
   ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
-  #-cvm-target (let ((*warn-if-redefine-kernel* nil))
-                 ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-                 ;(load "ccl:lib;compile-ccl.lisp")
-                 ;(load "ccl:lib;macros.lisp")
-                 ;(load "ccl:lib;foreign-types.lisp")
-                 ;(load "ccl:lib;db-io.lisp")
-                 ;(load "ccl:library;sockets.lisp")
-                 ;(load "ccl:lib;nfcomp.lisp")
-                 )
+  (let ((*warn-if-redefine-kernel* nil))
+    ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
+    ;(load "ccl:lib;compile-ccl.lisp")
+    ;(load "ccl:lib;macros.lisp")
+    ;(load "ccl:lib;foreign-types.lisp")
+    ;(load "ccl:lib;db-io.lisp")
+    ;(load "ccl:library;sockets.lisp")
+    ;(load "ccl:lib;nfcomp.lisp")
+    )
 
+  ;; * who does these first few binding for other platforms?  In fact, how does cross compilation happen for other
+  ;; platforms -- there are no calls to cross-load-level-0 etc.
   (let* ((*features* *features*)
          (*save-source-locations* NIL)
          (*cerror-on-constant-redefinition* t)
          (*package* (find-package :ccl))
          (*save-doc-strings* t)
          (*fasl-save-doc-strings* t)
-         (*aux-modules* (set-difference *aux-modules* *modules-not-for-cvm*))
-         (*code-modules* (set-difference *code-modules* *modules-not-for-cvm*))
-         (*compiler-modules* (set-difference *compiler-modules* *modules-not-for-cvm*))
-         (output-dir #+cvm-target "ccl:cvmsrcs;"
-                     #-cvm-target (if force "ccl:xcvmsrcs;" "ccl:cvmsrcs;")) ;; cross compiled sources
-         ;; Send all output to cvmsrcs.
-         (*ccl-system* (loop for (module fasl . sources) in *ccl-system*
-                         collect (list* module (merge-pathnames output-dir fasl) sources)))
-         ;; (cross-compile-ccl t) will reload sysdef-modules (i.e. systems and compile-ccl) as first thing,
-         ;; which would override all our careful rebinding above.
-         (*aux-modules* (append *sysdef-modules* *aux-modules*))
-         (*sysdef-modules* nil)
+         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*))
          (target (backend-name *cvm-backend*)))
 
-    (flet ((clean (dir)
-             (mapcar #'delete-file (directory (merge-pathnames (%str-cat dir "*")
-                                                               (backend-target-fasl-pathname *cvm-backend*))
-                                              ;; WOrks around a bug with .#xxx files,
-                                              :follow-links nil))))
-      (with-global-optimization-settings ()
-        ;; Compile level-0  --  replaces (xload-level-0)
-        ;; TODO: Maybe should make a *level-0-files* so don't rely on contents of directories..
-        (let ((output-dir-0 (%str-cat output-dir "level-0;")))
-          (ensure-directories-exist output-dir-0)
-          (when force (clean output-dir-0))
-          (let* ((level-0-systems
-                  (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
-                    nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-                            collect (list (intern (string-upcase (pathname-name src)) :ccl)
-                                          (merge-pathnames output-dir-0 src)
-                                          src))))
-                 (*ccl-system* (append level-0-systems *ccl-system*)))
-            
-            (with-cross-compilation-target (target)
-              (let ((*target-backend* *cvm-backend*))
-                (target-compile-modules (mapcar #'car level-0-systems) target force)))))
-        ;; Now compile everything else
-        (when force (clean output-dir))
-        (cross-compile-ccl target (not (null force)))
-        #-cvm-target (when force
-                       (let ((dest "ccl:cvmsrcs;"))
-                         (ensure-directories-exist dest)
-                         (clean (%str-cat dest "**;"))
-                         (recursive-copy-directory output-dir dest :if-exists :overwrite)))))))
+    (when force
+      (map nil #'delete-file (directory (make-pathname :name :wild
+                                                       :type (pathname-type *.fasl-pathname*)
+                                                       :directory '(:absolute :wild-inferiors)
+                                                       :host "ccl")
+                                        ;; works around a bug with .#xxx files
+                                        :follow-links nil)))
 
+    (with-global-optimization-settings ()
+      (with-cross-compilation-target (target)
+        (let ((*target-backend* *cvm-backend*))
+          (cvm-compile-level-0)))
+      (cross-compile-ccl target (not (null force))))
 
+    #+no ;; this is more like rebuild
+    (when force
+      (collect-all-fasls "ccl:xcvmsrcs;"))))
+
+;; Maybe don't even need them, just zip up the whole system, sources and all, and that's what you've got.
+;;  The only case would be if we want to check them into a version control system...  Figure that out later.
+(defun collect-all-fasls (&optional (dest "ccl:cvmsrcs;"))
+  (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
+    ;; Delete dest before get fasls so that don't try to copy the fasls from dest
+    (recursive-delete-directory dest :if-does-not-exist nil)
+    (copy-all-fasls "ccl:" dest)))
+
+(defun restore-all-fasls (&optional (src "ccl:cvmsrcs;"))
+  (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
+    (copy-all-fasls src "ccl:" :if-exists :supersede)))
+
+(defun copy-all-fasls (srcdir destdir &key (if-exists :error))
+  (let* ((fasls-path (full-pathname (merge-pathnames (merge-pathnames "**/*" srcdir) *.fasl-pathname*)))
+         (ndirs (1- (length (pathname-directory fasls-path))))
+         (seen-dirs ()))
+    (loop for file in (directory fasls-path :follow-links nil)
+      as subdirs = (nthcdr ndirs (pathname-directory file))
+      as destsubdir = (merge-pathnames (make-pathname :directory `(:relative ,@subdirs)) destdir)
+      do (unless (member subdirs seen-dirs :test 'equal)
+           (push subdirs seen-dirs)
+           (ensure-directories-exist destsubdir))
+      do (copy-file file (merge-pathnames destsubdir file) :if-exists if-exists))))
 
 (defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
   (when (eq (car lambda-expr) 'defun)
