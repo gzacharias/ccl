@@ -110,7 +110,7 @@
   (subtag-complex-double-float-vector 9)
   subtag-signed-16-bit-vector  ;; 'word-vector
   subtag-unsigned-16-bit-vector  ;; 'unsigned-word-vector
-  subtag-signed-8-bit-vector ; 'byte-vetor
+  (subtag-signed-8-bit-vector 13) ; 'byte-vector
   subtag-unsigned-8-bit-vector ;;unsigned-byte-vector
   subtag-bit-vector)  ;; bit-vector
 
