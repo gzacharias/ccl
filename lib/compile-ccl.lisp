@@ -38,8 +38,11 @@
     ))
 
 (defparameter *compiler-modules*
-  '(nx optimizers dll-node arch vreg vinsn 
-    reg subprims  backend nx2 acode-rewrite))
+  '(nx optimizers dll-node arch
+       #-cvm-target vreg
+       #-cvm-target vinsn 
+       #-cvm-target reg
+       subprims backend nx2 acode-rewrite))
 
 
 (defparameter *ppc-compiler-modules*
@@ -105,6 +108,7 @@
 (defparameter *x8632-xload-modules* '(xx8632fasload xfasload heap-image ))
 (defparameter *x8664-xload-modules* '(xx8664fasload xfasload heap-image ))
 (defparameter *arm-xload-modules* '(xarmfasload xfasload heap-image ))
+(defparameter *cvm-xload-modules* '())
 
 
 ;;; Not too OS-specific.
@@ -146,6 +150,7 @@
     ((:ppc32 :ppc64) *ppc-xload-modules*)
     (:x8632 *x8632-xload-modules*)
     (:x8664 *x8664-xload-modules*)
+    (:cvm *cvm-xload-modules*)
     (:arm *arm-xload-modules*)))
 
 
@@ -268,10 +273,26 @@
     ))
 
 
+;; TODO: get rid of this and make each file be #-cvm-target (progn ..)
+(defparameter *modules-not-for-cvm*
+  '(edit-callers
+    cover
+    leaks
+    core-files
+    dominance
+    backtrace-lds ;; TODO: either make this load, or get rid of backtrace as well.
+    vreg
+    vinsn
+    reg))
 
 
 
 
+(defun target-modules (modules &optional (target (backend-name *host-backend*)))
+  (if (not (listp modules)) (setq modules (list modules)))
+  (case target
+    (:darwincvm (set-difference modules *modules-not-for-cvm*))
+    (t modules)))
 
 (defun target-level-1-modules (&optional (target (backend-name *host-backend*)))
   (append *level-1-modules*
@@ -310,7 +331,7 @@
 
 ;compile if needed.
 (defun target-compile-modules (modules target force-compile)
-  (if (not (listp modules)) (setq modules (list modules)))
+  (setq modules (target-modules modules target))
   (in-development-mode
    (dolist (module modules t)
      (multiple-value-bind (fasl sources) (find-module module target)
@@ -341,7 +362,7 @@
 ;;;compile if needed, load if recompiled.
 
 (defun update-modules (modules &optional force-compile)
-  (if (not (listp modules)) (setq modules (list modules)))
+  (setq modules (target-modules modules))
   (in-development-mode
    (dolist (module modules t)
      (multiple-value-bind (fasl sources) (find-module module)
@@ -418,7 +439,7 @@
     (compile-modules *aux-modules* force)))
 
 (defun require-update-modules (modules &optional force-compile)
-  (if (not (listp modules)) (setq modules (list modules)))
+  (setq modules (target-modules modules))
   (in-development-mode
     (dolist (module modules)
     (require-modules module)
@@ -467,7 +488,7 @@
           (error "Can't find ~S or ~S" fasl source)))))
 
 (defun require-modules (modules &optional force-load)
-  (if (not (listp modules)) (setq modules (list modules)))
+  (setq modules (target-modules modules))
   (let ((*package* (find-package :ccl)))
     (dolist (m modules t)
       (require-module m force-load))))
@@ -593,7 +614,7 @@ not runtime errors reported by a successfully created process."
           (lisp-implementation-version))
   (format stream "~&Path to source code: ~s" (truename "ccl:")))
 
-(defun rebuild-ccl (&key update full clean kernel force (reload t) exit
+(defun rebuild-ccl (&key update full clean kernel force (reload #+cvm-target nil #-cvm-target t) exit
                          reload-arguments verbose optional-features
                          (save-source-locations *ccl-save-source-locations*)
                          (allow-constant-redefinition nil allow-constant-redefinition-p))
