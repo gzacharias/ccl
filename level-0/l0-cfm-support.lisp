@@ -594,27 +594,35 @@
   "Try to resolve the address of the foreign symbol name. If successful,
 return a fixnum representation of that address, else return NIL."
   (with-cstrs ((n name))
-    #+ppc-target
-    (with-macptrs (addr)      
-      (%setf-macptr addr
-		    (ff-call (%kernel-import target::kernel-import-FindSymbol)
-			     :address handle
-			     :address n
-			     :address))
-      (unless (%null-ptr-p addr)	; No function can have address 0
-	(or (macptr->fixnum addr) (%inc-ptr addr 0))))
-    #+(or x8632-target arm-target)
-    (let* ((addr (ff-call (%kernel-import target::kernel-import-FindSymbol)
-			  :address handle
-			  :address n
-			  :unsigned-fullword)))
-      (unless (eql 0 addr) addr))
-    #+x8664-target
-    (let* ((addr (ff-call (%kernel-import target::kernel-import-FindSymbol)
-                          :address handle
-                          :address n
-                          :unsigned-doubleword)))
-      (unless (eql 0 addr) addr))))
+    (flet ((lookup (n handle)
+             #+ppc-target
+             (with-macptrs (addr)
+               (%setf-macptr addr
+                             (ff-call (%kernel-import target::kernel-import-FindSymbol)
+                                      :address handle
+                                      :address n
+                                      :address))
+               (unless (%null-ptr-p addr)	; No function can have address 0
+                 (or (macptr->fixnum addr) (%inc-ptr addr 0))))
+             #+(or x8632-target arm-target)
+             (let* ((addr (ff-call (%kernel-import target::kernel-import-FindSymbol)
+                                   :address handle
+                                   :address n
+                                   :unsigned-fullword)))
+               (unless (eql 0 addr) addr))
+             #+x8664-target
+             (let* ((addr (ff-call (%kernel-import target::kernel-import-FindSymbol)
+                                   :address handle
+                                   :address n
+                                   :unsigned-doubleword)))
+               (unless (eql 0 addr) addr))))
+      ;; Try all explicitly opened libraries first
+      (or (and (%null-ptr-p handle)
+               (loop for lib in *shared-libraries*
+                 as val = (when (macptrp (shlib.handle lib)) ;; can be dead-macptr while starting up.
+                            (lookup n (shlib.handle lib)))
+                 when val return val))
+          (lookup n handle)))))
 
 (defvar *statically-linked* nil)
 
