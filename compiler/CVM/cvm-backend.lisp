@@ -160,52 +160,6 @@
                 lfun-bclambda))
 
 
-(defun %deferred-load-record (name)
-  (assert (keywordp name))
-  ;; This used to be necessary but at this point it's just an optimization..
-  (if (eq name :address) ;; shouldn't be necessary any more?
-    (or (info-foreign-type-definition name)
-        (progn
-          (break "No info for  :address?")
-          (make-foreign-pointer-type))) ;; load-record
-    (or (info-foreign-type-definition name)
-        (make-foreign-record-type :kind :struct :name name))))
-
-(defun %deferred-foreign-access-form (base-form record-name bit-offset accessors)
-  (assert (zerop bit-offset)) ;;; ** TODO: if this never triggers, get rid of the arg.
-  `(cvm-access-foreign-field ,base-form
-                             ',(if accessors (cons record-name accessors) record-name)
-                             ,bit-offset))
-
-(defsetf cvm-access-foreign-field setf-cvm-access-foreign-field)
-
-(defun %deferred-foreign-array-access-form (base-form name index-form)
-  (assert (keywordp name))
-  `(cvm-access-foreign-array ,base-form ',name ,index-form))
-
-(defun %deferred-foreign-size-form (type-name units accessors)
-  (let ((form `(cvm-foreign-bit-size '(,type-name ,@accessors))))
-    (ecase units
-      (:bits form)
-      (:bytes `(ash (%i+ ,form 7) -3))
-      (:words `(ash (%i+ ,form 31) -5)))))
-
-(defun %deferred-field-offset-form (record-name field-name)
-  ;; this is for get-field-offset which returns 3 values, but the last 2 are never used in ccl
-  `(values (cvm-foreign-field-byte-offset ',record-name ',field-name) 'unimplemented-record-type 0))
-
-(defun %deferred-foreign-init-forms (ptr record-name inits)
-  (when inits
-    (assert (keywordp record-name))
-    (assert (or (null (cdr inits)) (evenp (length inits))))
-    (if (null (cdr inits))
-      `((setf ,(%deferred-foreign-access-form ptr record-name 0 ()) ,(car inits)))
-      ;; make like %foreign-record-field-forms
-      (loop for (key valform) on inits by #'cddr
-        do (assert (keywordp key))
-        collect `(setf ,(%deferred-foreign-access-form ptr record-name 0 (list key))
-                       ,valform)))))
-
 ;; foreign-type-to-repesentation-type gets into pasing and databases and stuff we don't support.
 ;; Just kludge it.
 (defparameter *foreign-type-to-representation-type*
