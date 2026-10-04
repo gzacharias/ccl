@@ -3160,7 +3160,8 @@ to binary 0."
            (ordinal-form (if (< ordinal max-canonical-foreign-type-ordinal)
                            ordinal
                            `(foreign-type-ordinal (load-time-value (%foreign-type-or-record ',record-name))))))
-      (when (eq *host-backend* *target-backend*)
+      (when (and (eq *host-backend* *target-backend*)
+                 (not (getf (ftd-attributes *target-ftd*) :defer-to-runtime)))
         (setq result (nconc result `((setf (uvref ,name target::macptr.type-cell) ,ordinal-form)))))
       (if (typep ftype 'foreign-record-type)
         (setq result
@@ -3215,7 +3216,8 @@ to binary 0."
 	 (memset (read-from-string "#_memset")))    
     `(let* ((,b (record-length ,record-name))
             (,p (,allocator ,b)))
-      ,@(when (eq *host-backend* *target-backend*)
+      ,@(when (and (eq *host-backend* *target-backend*)
+                   (not (getf (ftd-attributes *target-ftd*) :defer-to-runtime)))
               `((%set-macptr-type ,p ,ordinal-form)))
       (,memset ,p 0 ,b)
       ,@(%foreign-record-field-forms p ftype record-name initforms)
