@@ -27,8 +27,9 @@
   ;(require "CVMENV")
   )
 
-;; we don't load vinsns, which defines this, and it needs to be defined becuase
+;; When the host is the CVM we don't load vinsns, which defines this, and it needs to be defined because
 ;;  compile-named-function establishes a handler and get errors if it's not a valid type.
+#+cvm-target
 (define-condition linear-scan-bailout () ())
 
 
@@ -107,12 +108,14 @@
 ;;  and stored in *host-backend* (and install-standard-foreign-types is then called on it from l1-boot-2
 ;;  after that's defined).
 ;;
-;; When running in another host, assume this file is loaded into a fully initialized
-;; lisp, so make-ftd and install-standard-foreign-types are defined.
-#-cvm-target (setf (backend-target-foreign-type-data *cvm-backend*)
-                   (let ((ftd (make-cvm-ftd)))
-                     (install-standard-foreign-types ftd) ;; l1-boot-2 calls this after loading foreign-types
-                     ftd))
+;; When running in another host, this file loads before foreign-types, so make-ftd and
+;; install-standard-foreign-types are not defined yet.  l1-boot-2 calls SETUP-CVM-FTD after loading foreign-types.
+;; (If this file is reloaded into a running lisp, def-known-backend carries the old ftd over.)
+#-cvm-target
+(defun setup-cvm-ftd ()
+  (let ((ftd (make-cvm-ftd)))
+    (install-standard-foreign-types ftd)
+    (setf (backend-target-foreign-type-data *cvm-backend*) ftd)))
 
 ;; l1-aprims does this:
 ;(defpackage #.(ftd-interface-package-name (backend-target-foreign-type-data *target-backend*))
