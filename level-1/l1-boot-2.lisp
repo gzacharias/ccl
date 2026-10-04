@@ -276,7 +276,6 @@ present and false otherwise. This variable shouldn't be set by user code.")
       (bin-load-provide "ARM-ARCH" "arm-arch")
       #+arm64-target
       (bin-load-provide "ARM64-ARCH" "arm64-arch")
-      #+cvm-target
       (bin-load-provide "CVM-ARCH" "cvm-arch")
       (bin-load-provide "VREG" "vreg")
       
@@ -327,7 +326,6 @@ present and false otherwise. This variable shouldn't be set by user code.")
       #+arm64-target
       (bin-load "arm642")
 
-      #+cvm-target
       (bin-load "cvm2")
 
       (bin-load-provide "LEVEL-2" "level-2")
@@ -369,13 +367,15 @@ present and false otherwise. This variable shouldn't be set by user code.")
 	(bin-load-provide "ARM64-DISASSEMBLE" "arm64-disassemble")
 	(bin-load-provide "ARM64-LAPMACROS" "arm64-lapmacros"))
 
-      #+cvm-target
-      (progn
-        (bin-load-provide "CVM-FCOMP" "cvm-fcomp"))
+      (bin-load-provide "CVM-FCOMP" "cvm-fcomp")
 
 
       (bin-load-provide "FOREIGN-TYPES" "foreign-types")
       (install-standard-foreign-types *host-ftd*)
+      ;; The CVM backend is loaded in every host.  In the CVM host its ftd is the host ftd (see foreign-types),
+      ;; elsewhere it needs foreign-types, so it is set up now.
+      #-cvm-target
+      (setup-cvm-ftd)
       
       #+(and ppc32-target linux-target)
       (bin-load-provide "FFI-LINUXPPC32" "ffi-linuxppc32")

@@ -18,18 +18,6 @@
 
 #-CVM-TARGET
 (defun cross-compile-cvm (&optional force)
-  (load-cvm-target)
-  ;; TEMP while debugging. reload stuff we redefined, until build a new lisp with the changes.
-  (let ((*warn-if-redefine-kernel* nil))
-    ;(load "ccl:lib;systems.lisp") ;; make sure we have the latest, avoid bootstrapping issuess.
-    ;(load "ccl:lib;compile-ccl.lisp")
-    ;(load "ccl:lib;macros.lisp")
-    ;(load "ccl:lib;foreign-types.lisp")
-    ;(load "ccl:lib;db-io.lisp")
-    ;(load "ccl:library;sockets.lisp")
-    ;(load "ccl:lib;nfcomp.lisp")
-    )
-
   ;; * who does these first few binding for other platforms?  In fact, how does cross compilation happen for other
   ;; platforms -- there are no calls to cross-load-level-0 etc.
   (let* ((*features* *features*)
@@ -58,6 +46,15 @@
     #+no ;; this is more like rebuild
     (when force
       (collect-all-fasls "ccl:xcvmsrcs;"))))
+
+#-cvm-target ;; this is mostly for testing
+(defun cvm-compile (lambda)
+  "Compile LAMBDA with the CVM backend, from a ccl running on a real machine."
+  (let ((target (backend-name *cvm-backend*)))
+    (with-cross-compilation-target (target)
+      (let ((*target-backend* *cvm-backend*))
+        (compile-named-function lambda :target target)))))
+
 
 ;; Maybe don't even need them, just zip up the whole system, sources and all, and that's what you've got.
 ;;  The only case would be if we want to check them into a version control system...  Figure that out later.

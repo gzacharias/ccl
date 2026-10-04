@@ -42,7 +42,9 @@
        #-cvm-target vreg
        #-cvm-target vinsn 
        #-cvm-target reg
-       subprims backend nx2 acode-rewrite))
+       subprims backend nx2 acode-rewrite
+       ;; The CVM backend is part of the compiler for every target, not just the CVM.
+       cvm-arch cvm-backend cvm2))
 
 
 (defparameter *ppc-compiler-modules*
@@ -80,9 +82,6 @@
     arm64-asm
     arm64-lap))
 
-(defparameter *cvm-compiler-modules*
-  '(cvm-arch))
-
 (defparameter *ppc32-compiler-backend-modules*
   '(ppc32-backend ppc32-vinsns))
 
@@ -108,9 +107,6 @@
 
 (defparameter *arm64-compiler-backend-modules*
   '(arm64-backend arm64-vinsns arm642))
-
-(defparameter *cvm-compiler-backend-modules*
-  '(cvm-backend cvm2))
 
 
 (defparameter *ppc-xload-modules* '(xppcfasload xfasload heap-image ))
@@ -232,9 +228,7 @@
     (:arm (append *arm-compiler-modules*
                   *arm-compiler-backend-modules*))
     (:arm64 (append *arm64-compiler-modules*
-                    *arm64-compiler-backend-modules*))
-    (:cvm (append *cvm-compiler-modules*
-                  *cvm-compiler-backend-modules*))))
+                    *arm64-compiler-backend-modules*))))
 
 (defparameter *other-lib-modules*
   '(streams pathnames backtrace
@@ -242,7 +236,8 @@
     numbers 
     dumplisp
     source-files
-    swink))
+    swink
+    cvm-fcomp))
 
 (defun target-other-lib-modules (&optional (target
 					    (backend-target-arch-name
@@ -252,8 +247,7 @@
 	    ((:ppc32 :ppc64) '(ppc-backtrace ppc-disassemble))
             ((:x8632 :x8664) '(x86-backtrace x86-disassemble x86-watch))
             (:arm '(arm-backtrace arm-disassemble))
-            (:arm64 '(arm64-backtrace arm64-disassemble))
-            (:cvm '(cvm-fcomp)))))
+            (:arm64 '(arm64-backtrace arm64-disassemble)))))
 	  
 
 (defun target-lib-modules (&optional (backend-name
