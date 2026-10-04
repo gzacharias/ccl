@@ -285,7 +285,7 @@
 (defun target-modules (modules &optional (target (backend-name *host-backend*)))
   (if (not (listp modules)) (setq modules (list modules)))
   (case target
-    (:darwincvm (set-difference modules *modules-not-for-cvm*))
+    (:darwincvm (remove-if (lambda (module) (member module *modules-not-for-cvm*)) modules))
     (t modules)))
 
 (defun target-level-1-modules (&optional (target (backend-name *host-backend*)))
