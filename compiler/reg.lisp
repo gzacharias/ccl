@@ -159,7 +159,7 @@
       (error "bad regspec: ~s" regspec))))
 
 (defparameter *encoded-reg-value-byte*
-  #+x8664-target (byte 4 0)
+  #+(or x8664-target cvm-target) (byte 4 0)
   #+x8632-target (byte 3 0)
   #+(or arm-target ppc-target) (byte 5 0))
 

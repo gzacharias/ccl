@@ -27,11 +27,6 @@
   ;(require "CVMENV")
   )
 
-;; When the host is the CVM we don't load vinsns, which defines this, and it needs to be defined because
-;;  compile-named-function establishes a handler and get errors if it's not a valid type.
-#+cvm-target
-(define-condition linear-scan-bailout () ())
-
 
 (defparameter *known-cvm-backends* nil)
 

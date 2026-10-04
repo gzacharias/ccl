@@ -39,9 +39,9 @@
 
 (defparameter *compiler-modules*
   '(nx optimizers dll-node arch
-       #-cvm-target vreg
-       #-cvm-target vinsn 
-       #-cvm-target reg
+       vreg
+       vinsn
+       reg
        subprims backend nx2 acode-rewrite
        ;; The CVM backend is part of the compiler for every target, not just the CVM.
        cvm-arch cvm-backend cvm2))
@@ -274,10 +274,7 @@
     leaks
     core-files
     dominance
-    backtrace-lds ;; TODO: either make this load, or get rid of backtrace as well.
-    vreg
-    vinsn
-    reg))
+    backtrace-lds)) ;; TODO: either make this load, or get rid of backtrace as well.
 
 
 
