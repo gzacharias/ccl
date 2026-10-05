@@ -1,6 +1,6 @@
 (in-package :ccl)
 
-#-cvm-target (export 'cross-compile-cvm)
+#-cvm-target (export 'bc-compile-ccl)
 
 
 #+cvm-target
@@ -20,7 +20,7 @@
     (target-compile-modules (mapcar #'car *ccl-system*) (backend-name *target-backend*) nil)))
 
 #-CVM-TARGET
-(defun cross-compile-cvm (&key force (output "ccl:ccl-bc;"))
+(defun bc-compile-ccl (&key force (output "ccl:ccl-bc;"))
   ;; * who does these first few binding for other platforms?  In fact, how does cross compilation happen for other
   ;; platforms -- there are no calls to cross-load-level-0 etc.
   (let* ((*features* *features*)
@@ -50,7 +50,7 @@
       (collect-all-fasls output))))
 
 #-cvm-target ;; this is mostly for testing
-(defun cvm-compile (lambda)
+(defun bc-compile (lambda)
   "Compile LAMBDA with the CVM backend, from a ccl running on a real machine."
   (let ((target (backend-name *cvm-backend*)))
     (with-cross-compilation-target (target)
