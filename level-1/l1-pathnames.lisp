@@ -612,7 +612,8 @@
              
 
 (defun ccl-directory ()
-  (let* ((dirpath (getenv "CCL_DEFAULT_DIRECTORY")))
+  (let* ((dirpath (getenv #-cvm-target "CCL_DEFAULT_DIRECTORY"
+                          #+cvm-target "CCL_VM_DEFAULT_DIRECTORY")))
     (if (and dirpath (not (zerop (length (namestring dirpath)))))
       (native-to-directory-pathname dirpath)
       (let* ((heap-image-path (%realpath (heap-image-name))))
@@ -693,8 +694,20 @@
 
 
 
-(defparameter *module-search-path* (list
-                                    #+cvm-target (cons-pathname '(:absolute "cvmsrcs") nil "bc" "ccl")
+#+cvm-target
+;; During startup, redirect any REQUIRE attempts to the boot bc bundle.
+(defparameter *boot-search-path* (let* ((path (%realpath (heap-image-name)))
+                                        (dir (pathname-directory path))
+                                        (device (pathname-device path))
+                                        (type (pathname-type *.fasl-pathname*)))
+                             (list
+                              (cons-pathname `(,@dir "bin") nil type device)
+                              (cons-pathname `(,@dir "library") nil type device)
+                              (cons-pathname `(,@dir "tools") nil type device))))
+
+(defparameter *module-search-path* (append
+                                    #+cvm-target *boot-search-path*
+                                    (list
                                     (cons-pathname '(:absolute "bin") nil nil "ccl")
                                     (cons-pathname '(:absolute "openmcl" "modules") nil nil "home")
                                     (cons-pathname '(:absolute "lib") nil nil "ccl")
@@ -704,6 +717,11 @@
 				    (cons-pathname '(:absolute "tools") nil nil "ccl")
                                     (cons-pathname '(:absolute "objc-bridge") nil nil "ccl")
                                     (cons-pathname '(:absolute "cocoa-ide") nil nil "ccl"))
+				    )
   "Holds a list of pathnames to search for the file that has same name
    as a module somebody is looking for.")
+
+#+cvm-target
+(defun forget-boot-search-path ()
+  (setq *module-search-path* (remove-if (lambda (path) (memq path *boot-search-path*)) *module-search-path*)))
 
