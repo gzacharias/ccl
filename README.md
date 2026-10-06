@@ -51,16 +51,18 @@ into the standard image when rebuilding for the very first time.  Two rebuilds a
 (quit)
 ```
 
+This branch has changes that implement `ccl:bc-compile-ccl`, but is otherwise a fully functional ccl, including supporting the IDE.
+
 **3. Compile CCL to bytecode.**
 
-```lisp
+```
 (ccl:bc-compile-ccl :force t :output "ccl:ccl-bc;")
 ```
 
-This puts the .bc files in the directory `ccl:ccl-bc;` (it also leaves a copy in the sources, but don't rely on that, it's a bug).
+This puts the .bc files in the directory specified by `:output`(default `"ccl:ccl-bc;"`).  (Copies of the .bc files are also left in the sources, but don't rely on that, it's a bug.)
 
 
-**4. Run it** in ccl-vm. Boot  ccl-vm from `ccl:ccl-bc;`.  See [ccl-vm README](https://github.com/gzacharias/ccl-vm#readme) for details.
+**4. Run it in ccl-vm.** See [ccl-vm README](https://github.com/gzacharias/ccl-vm#readme) for details.
 
 ## Status
 
