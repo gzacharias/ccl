@@ -509,13 +509,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; immediates
-#+GZ
-(defmethod print-object ((v var) stream)
-  (print-unreadable-object (v stream :type t :identity t)
-    (format stream "~s" (var-name v))
-    (unless (fixnump (var-bits v))
-      (format stream " inh ~s" (var-bits  v)))))
-
 ;; x862-fixnum 
 (defcvm2 fixnum (value) (cvm2-quote value))
 
