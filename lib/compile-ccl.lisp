@@ -268,6 +268,7 @@
 
 
 ;; TODO: get rid of this and make each file be #-cvm-target (progn ..)
+;; Note -- this is also listed in ccl-vm *modules-not-in-bundle*, update that whenever update this
 (defparameter *modules-not-for-cvm*
   '(edit-callers
     cover
