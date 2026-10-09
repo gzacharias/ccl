@@ -327,7 +327,7 @@
   (arch::make-target-arch :name :cvm
                           :lisp-node-size 'arch::unknown
                           :nil-value 'arch::unknown
-                          :fixnum-shift 'arch::unknown
+                          :fixnum-shift fixnumshift
                           :most-positive-fixnum target-most-positive-fixnum
                           :most-negative-fixnum target-most-negative-fixnum
                           :misc-data-offset 'arch::unknown
@@ -335,7 +335,9 @@
                           :nbits-in-word nbits-in-word
                           :ntagbits 4
                           :nlisptagbits 3
-                          :uvector-subtags *cvm-uvector-subtags*
+                          ;; Single floats are immediates here (typecode = fulltag-single-float), but upstream's REALP compiler
+                          ;; macro looks up the typecode of every number type as a uvector subtag, as x8664 does.
+                          :uvector-subtags (acons :single-float subtag-single-float *cvm-uvector-subtags*)
                           :max-64-bit-constant-index 'arch::unknown;;max-64-bit-constant-index
                           :max-32-bit-constant-index 'arch::unknown ;;max-32-bit-constant-index
                           :max-16-bit-constant-index 'arch::unknown ;;max-16-bit-constant-index
