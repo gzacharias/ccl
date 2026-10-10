@@ -1379,6 +1379,11 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
     (if (consp type)
       ;; Explicit (:struct NAME) may be an empty stub; prefer typedef target.
       (%foreign-record-via-typedef (parse-foreign-type type))
+      #+cvm-target
+      ;; The cvm target has no interface db, so don't go looking for typedefs first.
+      (or (%find-foreign-record type)
+          (parse-foreign-type type))
+      #-cvm-target
       ;; Prefer a non-record typedef (e.g. ObjC `id` → :* objc_object) over
       ;; a same-named record installed for `(struct-ref "id")`.  Also prefer
       ;; a *complete* typedef that aliases another record (NSRange→_NSRange)
