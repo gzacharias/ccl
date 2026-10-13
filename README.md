@@ -2,7 +2,7 @@
 
 This is a branch of Clozure CL which can compile CCL code into lisp-like bytecode for loading into [ccl-vm](https://github.com/gzacharias/ccl-vm), a virtual ccl runtime that can run inside any common lisp.  Instead of fasl files, it produces `.bc` files, which are plain text lisp expressions, and as such can be copied to any machine or checked into source control.
 
-This branch is currently based on upstream Clozure CL `master` as of 2025-04-14 (commit `da7138ef`, based on version 1.13) and has not been merged with upstream since.
+This branch is currently based on upstream Clozure CL `master` as of 2026-10-11 (commit `449cd087`, based on version 1.13) and has not been merged with upstream since.
 
 ## Implementation strategy
 
@@ -41,8 +41,8 @@ into the standard image when rebuilding for the very first time.  Two rebuilds a
 ./dx86cl64 -n
 (let ((*warn-if-redefine-kernel* nil))
   (load "ccl:lib;compile-ccl.lisp"))
-;; First rebuild, expect warnings since it doesn't know about our changes
-(rebuild-ccl :clean t)
+;; First rebuild, expect warnings since it doesn't know about our changes, and rebuild kernel in case changed from release
+(rebuild-ccl :clean t :kernel t)
 (quit)
 
 ./dx86cl64 -n
