@@ -36,7 +36,7 @@
      (push ,var *known-cvm-backends*)
      (let ((old (member (backend-name ,var) *known-backends* :key #'backend-name)))
        (cond (old
-              (format t "~&Updating ~s" (backend-name ,var))
+              ;(format t "~&Updating ~s" (backend-name ,var))
               (setf (backend-target-foreign-type-data ,var)
                     (backend-target-foreign-type-data (car old)))
               (setf (car old) ,var))
