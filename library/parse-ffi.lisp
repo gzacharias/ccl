@@ -59,6 +59,13 @@
 (defvar *ffi-macro-overrides*
   '((:macro ("{override}" 0) "_IOC_TYPECHECK ( t )" "sizeof(t)")))
 
+;;; Compiler keywords that stand for constant values.  When the
+;;; compiler supports BOOL literals, objc.h does "#define YES
+;;; __objc_yes" and "#define NO __objc_no".
+(defvar *c-builtin-constants*
+  '(("__objc_yes" . 1)
+    ("__objc_no" . 0)))
+
 (defvar *ffi-void-reference* '(:primitive :void))
 
 ;;; ffigen5 gives the 16-bit float types (__fp16, _Float16, __bf16)
@@ -449,7 +456,7 @@
              (:short '(:signed 16))
              (:unsigned-short '(:unsigned 16))
              ((:vec128 :unsigned-long-long-long) '(:unsigned 128))
-             (:signed-long-long-long '(:signed 128))
+             ((:long-long-long :signed-long-long-long) '(:signed 128))
              (:int '(:signed 32))
              (:long (ecase (or
                             (getf
@@ -479,7 +486,6 @@
              (:complex-float :complex-float)
              (:complex-double :complex-double)
              (:complex-long-double :complex-long-float)
-             (:long-long-long :long-long-long)
              #|(:void :void)|#)))))
              
              
@@ -782,6 +788,12 @@
     (record-global-function ffi-function)))
 
 
+(defun ffi-form-static-p (form)
+  "True if FORM, a function or var form, describes something with static
+storage (e.g., a static inline function).  There's no symbol to link
+against for such a thing."
+  (equal (car (last form)) '(:static)))
+
 (defun read-ffi-toplevel-form (stream eof-value)
   (loop
     (let* ((ch (peek-char  nil stream nil eof-value)))
@@ -817,19 +829,21 @@
                   )
                  (process-ffi-objc-method form))
                 (:function
-                 (handler-case
-                     (push (process-ffi-function form) defined-functions)
-                   (error (c)
-                     ;; e.g., a 16-bit float passed by value; skip.
-                     (warn "parse-ffi: skipping function ~s: ~a"
-                           (caddr form) c))))
+                 (unless (ffi-form-static-p form)
+                   (handler-case
+                       (push (process-ffi-function form) defined-functions)
+                     (error (c)
+                       ;; e.g., a 16-bit float passed by value; skip.
+                       (warn "parse-ffi: skipping function ~s: ~a"
+                             (caddr form) c)))))
                 (:macro (let* ((m (process-ffi-macro form))
                                (args (ffi-macro-args m)))
                           (if args
                             (setf (gethash (string (ffi-macro-name m)) argument-macros) args)
                             (push m defined-macros))))
                 (:type (push (process-ffi-typedef form) defined-types))
-                (:var (push (process-ffi-var form) defined-vars))
+                (:var (unless (ffi-form-static-p form)
+                        (push (process-ffi-var form) defined-vars)))
                 (:enum-ident (push (process-ffi-enum-ident form) defined-constants))
                 (:enum (process-ffi-enum form))
                 (:union (push (process-ffi-union form) defined-types))
@@ -1386,6 +1400,9 @@
                                  (setq value (list value) token-list `(,@value #.*rparen-symbol* ,@token-list))
                                  (parse-parenthesized))
                                 ((setq value (assoc token additional-constants))
+                                 (cdr value))
+                                ((setq value (assoc (symbol-name token) *c-builtin-constants*
+                                                    :test #'string=))
                                  (cdr value))
                                 ((and expand-macros
                                       (setq value (macro-definition-of-token token))

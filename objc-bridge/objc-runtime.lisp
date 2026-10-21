@@ -179,7 +179,7 @@
 		  (new-size (* 2 old-size)))
 	     (declare (fixnum old-size new-size))
 	     (macrolet ((extend (v)
-                              `(setq ,v (%extend-vector old-size ,v new-size))))
+                          `(setq ,v (%extend-vector 0 ,v new-size))))
                    (extend c)
                    (extend m)
                    (extend cw)
@@ -331,19 +331,16 @@
 (defloadvar *cocoa-event-process* *initial-process*)
 
 
-(defun current-ns-thread ()
-  (with-cstrs ((class-name "NSThread")
-               (message-selector-name "currentThread"))
-    (let* ((nsthread-class (#_objc_lookUpClass class-name))
-           (message-selector (#_sel_getUid message-selector-name)))
-      (#_objc_msgSend nsthread-class message-selector)
-      nil)))
-  
 (defun create-void-nsthread ()
   ;; Create an NSThread which does nothing but exit.
   ;; This'll help to convince the AppKit that we're
   ;; multitheaded.  (A lot of other things, including
   ;; the ObjC runtime, seem to have already noticed.)
+  ;;
+  ;; This runs while this file is being loaded (and at startup),
+  ;; before OBJC-MESSAGE-SEND and the selector machinery are
+  ;; defined, so call objc_msgSend directly, with explicit
+  ;; argument and result types.
   (with-cstrs ((thread-class-name "NSThread")
                (pool-class-name "NSAutoreleasePool")
                (thread-message-selector-name "detachNewThreadSelector:toTarget:withObject:")
@@ -358,16 +355,25 @@
            (alloc-selector (#_sel_getUid alloc-selector-name))
            (init-selector (#_sel_getUid init-selector-name))
            (release-selector (#_sel_getUid release-selector-name))
-           (pool (#_objc_msgSend
-                  (#_objc_msgSend pool-class
-                                  alloc-selector)
-                  init-selector)))
+           (pool (external-call "objc_msgSend"
+                                :address (external-call "objc_msgSend"
+                                                        :address pool-class
+                                                        :address alloc-selector
+                                                        :address)
+                                :address init-selector
+                                :address)))
       (unwind-protect
-           (#_objc_msgSend nsthread-class thread-message-selector
-                           :address exit-selector
-                           :address nsthread-class
-                           :address (%null-ptr))
-        (#_objc_msgSend pool release-selector))
+           (external-call "objc_msgSend"
+                          :address nsthread-class
+                          :address thread-message-selector
+                          :address exit-selector
+                          :address nsthread-class
+                          :address (%null-ptr)
+                          :void)
+        (external-call "objc_msgSend"
+                       :address pool
+                       :address release-selector
+                       :void))
       nil)))
 
 (defun load-cocoa-framework ()
@@ -399,7 +405,6 @@
            (#_NSInitializeProcess 1 argv)))
          
        ;(#_GetCurrentEventQueue)
-       (current-ns-thread)
        (create-void-nsthread))))
 
 (pushnew #'load-cocoa-framework *lisp-system-pointer-functions* :key #'function-name)
@@ -956,6 +961,18 @@
                 class))))))))
 				
 
+
+;;; The layout of an NSConstantString instance, as described above.
+;;; (Foundation declares NSConstantString as an ObjC class, which the
+;;; interface databases don't describe as a struct.)  The header calls
+;;; numBytes an int, followed by an unused int on LP64; treating them
+;;; together as an unsigned long sets both.
+#+apple-objc
+(def-foreign-type nil
+    (:struct :<NSC>onstant<S>tring
+             (:isa (:* :void))
+             (:bytes (:* :signed-char))
+             (:num<B>ytes :unsigned-long)))
 
 ;;; Execute the body with the variable NSSTR bound to a
 ;;; stack-allocated NSConstantString instance (made from
@@ -2735,8 +2752,12 @@ argument lisp string."
       (safe-get-ptr classptr meta)
       (unless (%null-ptr-p meta)
 	(safe-get-ptr meta metameta)
+	;; A metaclass also passes the first two tests (its isa is
+	;; the root metaclass, whose isa is itself).  Installing one
+	;; as a class would give it the lisp name of its instance.
 	(when (and (eql metameta (find-class 'ns::+ns-object nil))
-		   (%objc-metaclass-p meta))
+		   (%objc-metaclass-p meta)
+		   (not (%objc-metaclass-p classptr)))
 	  (let* ((classptr (%inc-ptr classptr 0)))
 	    (install-foreign-objc-class classptr nil)
 	    (objc-private-class-id classptr)))))))
