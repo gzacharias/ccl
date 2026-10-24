@@ -950,10 +950,10 @@ vector
   (%pl-search plist key))
 
 
-(defun rassoc (item alist &key (test #'eql test-p) test-not (key #'identity))
-  (declare (list alist))
+(defun rassoc (item alist &key (test #'eql test-p) test-not key)
   "Return the cons in ALIST whose CDR is equal (by a given test or EQL) to
    the ITEM."
+  (unless key (setq key #'identity))
   (if (or test-p (not test-not))
     (progn
       (if test-not (error "Cannot specify both :TEST and :TEST-NOT."))

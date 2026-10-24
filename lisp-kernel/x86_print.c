@@ -29,7 +29,6 @@
 void
 sprint_lisp_object(LispObj, int);
 
-//#define PBUFLEN 252
 #define PBUFLEN 508
 
 char printbuf[PBUFLEN + 4];
@@ -511,7 +510,8 @@ sprint_gvector(LispObj o, int depth)
 }
 
 void
-sprint_ivector(LispObj o) {
+sprint_ivector(LispObj o)
+{
   LispObj header = header_of(o);
   natural elements = header_element_count(header);
   unsigned subtag = header_subtag(header);
@@ -522,33 +522,41 @@ sprint_ivector(LispObj o) {
     add_lisp_base_string(o);
     add_char('"');
     return;
-    
+
   case subtag_bignum: // digits are 32-bit words, little endian
-    if (elements == 2) {
-      natural d = deref(o, 1);
-      sprint_signed_decimal((signed_natural)((d<<32)&(d>>32)));
+#if WORD_SIZE == 32
+    if (elements == 1) {
+      sprint_signed_decimal((signed_natural)(deref(o, 1)));
       return;
-    } else if ((elements == 4) && (deref(o, 2) == 0)) {
-      natural d = deref(o, 1);
-      sprint_unsigned_decimal((d<<32)&(d>>32));
+    } else if ((elements == 2) && (deref(o, 2) == 0)) {
+      sprint_unsigned_decimal(deref(o, 1));
       return;
     }
-    sprint_random_vector(o, subtag, elements);
-    return;
-    
+#elif WORD_SIZE == 64
+    if (elements == 2) {
+      sprint_signed_decimal((signed_natural)(deref(o, 1)));
+      return;
+    } else if ((elements == 3) && ((deref(o, 2) & 0xffffffff) == 0)) {
+      // 2^63 <= value < 2^64: two digits plus a zero third (sign) digit
+      sprint_unsigned_decimal(deref(o, 1));
+      return;
+    }
+#else
+#error "bad value for WORD_SIZE"
+#endif
+    break;
+
   case subtag_double_float:
-    sprint_random_vector(o, subtag, elements);
-    return;
+    break;
 
   case subtag_macptr:
     add_c_string("#<MACPTR ");
     sprint_unsigned_hex(deref(o,1));
     add_c_string(">");
     return;
-
-  default:
-    sprint_random_vector(o, subtag, elements);
   }
+
+  sprint_random_vector(o, subtag, elements);
 }
 
 void

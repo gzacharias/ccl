@@ -4210,7 +4210,8 @@
             (if src-gpr
               ;; "Copying" a GPR to a CR field means comparing it to rnil
               (! compare-to-nil dest src)
-              (! compare-to-nil dest arm64::rnil))
+              ;; A non-GPR value (e.g., an unboxed float) is never NIL.
+              (! clr-eq-bit))
             (if (and dest-gpr src-gpr)
               ;; This is the "GPR <- GPR" case.  There are
               ;; word-size dependencies, but there's also
@@ -7440,9 +7441,7 @@
       (if (and fix1 fix2)
         (arm642-use-operator (%nx1-operator fixnum) seg vreg xfer (logand fix1 fix2))
         (let* ((fixval (or fix1 fix2))
-               (fixlen (if fixval (integer-length fixval)))
                (unboxed-fixval (if fixval (ash fixval *arm642-target-fixnum-shift*)))
-               (maskable (and fixval (= fixlen (logcount fixval))))
                (otherform (if fixval (if fix1 form2 form1)))
                (out-of-line (backend-get-next-label))
                (done (backend-get-next-label)))
@@ -7460,13 +7459,11 @@
                   (arm642-branch-unless-both-args-fixnums seg ($ arm64::arg_y) ($ arm64::arg_z) (aref *backend-labels* out-of-line)))))
             (if otherform
               (cond
-                (maskable
-                 (let* ((nbits (- *arm642-target-bits-in-word*
-                                  (1+ (+ *arm642-target-fixnum-shift* fixlen)))))
-                   (if (> fixval 0)
-                     (! clear-left ($ arm64::arg_z) ($ arm64::arg_z) nbits)
-                     (! clear-right ($ arm64::arg_z) ($ arm64::arg_z) (+ fixlen
-                                                                         *arm642-target-fixnum-shift*)))))
+                ;; An arm64 logical immediate can't encode 0, but that
+                ;; doesn't even matter here: we know arg_z is a fixnum,
+                ;; so the result is 0.
+                ((eql fixval 0)
+                 (arm642-lri seg ($ arm64::arg_z) 0))
                 ((arm64::encode-logical-immediate unboxed-fixval)
                  (! logand-imm ($ arm64::arg_z) ($ arm64::arg_z) unboxed-fixval))
                 (t
@@ -7644,15 +7641,27 @@
       (arm642-form seg nil xfer num2))
     (let* ((fix1 (acode-fixnum-form-p num1))
            (fix2 (acode-fixnum-form-p num2))
-           (other (if (typep fix1 '(signed-byte 16)) num2 (if (typep fix2 '(signed-byte 16)) num1))))
+           (other (if (typep fix1 '(signed-byte 16))
+                    num2
+                    (if (typep fix2 '(signed-byte 16))
+                      num1))))
       (if (and fix1 fix2)
-        (arm642-lri seg vreg (ash (* fix1 fix2) *arm642-target-fixnum-shift*))
-        (if other
-          (! multiply-immediate vreg (arm642-one-untargeted-reg-form seg other arm64::arg_z) (or fix1 fix2))
-          (multiple-value-bind (rx ry) (arm642-two-untargeted-reg-forms seg num1 arm64::arg_y num2 arm64::arg_z)
-            (ensuring-node-target (target vreg)
-              (! multiply-fixnums target rx ry)))))
-      (^))))
+        ;; Probably can't get here: the front-end will have already done
+        ;; the constant multiply.
+        (arm642-use-operator (%nx1-operator fixnum) seg vreg xfer
+                             (* fix1 fix2))
+        (progn
+          (if other
+            (let* ((reg (arm642-one-untargeted-reg-form seg other
+                                                        arm64::arg_z)))
+              (ensuring-node-target (target vreg)
+                (! multiply-immediate target reg (or fix1 fix2))))
+            (multiple-value-bind (rx ry)
+                (arm642-two-untargeted-reg-forms seg num1 arm64::arg_y
+                                                 num2 arm64::arg_z)
+              (ensuring-node-target (target vreg)
+                (! multiply-fixnums target rx ry))))
+          (^))))))
 
 (defarm642 arm642-nth-value nth-value (seg vreg xfer n form)
   (let* ((*arm642-vstack* *arm642-vstack*))

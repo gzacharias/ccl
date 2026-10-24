@@ -6471,10 +6471,16 @@
                                (insert-dll-node-after jump adjust)
                                (elide-vinsn last-vinsn)
                                (setq handled-crf unconditional)))))))
-                (unless handled-crf
-                  (x862-unwind-set seg xfer old-stack)
-                  (when vreg (<- *x862-arg-z*))
-                  (^))))))))))
+                (if handled-crf
+                  ;; In the shortcut above, we replaced a constant
+                  ;; load with a vstack discard and a jump.  Make the
+                  ;; compile-time model of the vstack match.  In the
+                  ;; usual case, x862-unwind-set (below) does this.
+                  (x862-set-vstack (nth-value 2 (x862-decode-stack old-stack)))
+                  (progn
+                    (x862-unwind-set seg xfer old-stack)
+                    (when vreg (<- *x862-arg-z*))
+                    (^)))))))))))
 
 
 (defun x862-unwind-set (seg xfer encoding)
@@ -9208,15 +9214,25 @@
       (x862-form seg nil xfer num2))  
     (let* ((fix1 (acode-fixnum-form-p num1))
            (fix2 (acode-fixnum-form-p num2))
-           (other (if (typep fix1 '(signed-byte 32)) num2 (if (typep fix2 '(signed-byte 32)) num1))))
+           (other (if (typep fix1 '(signed-byte 32))
+                    num2
+                    (if (typep fix2 '(signed-byte 32))
+                      num1))))
       (if (and fix1 fix2)
-        (x862-lri seg vreg (ash (* fix1 fix2) *x862-target-fixnum-shift*))
-        (if other
-          (! multiply-immediate vreg (x862-one-untargeted-reg-form seg other *x862-arg-z*) (or fix1 fix2))
-          (multiple-value-bind (rx ry) (x862-two-untargeted-reg-forms seg num1 *x862-arg-y* num2 *x862-arg-z*)
-            (ensuring-node-target (target vreg)
-              (! multiply-fixnums target rx ry)))))
-      (^))))
+        ;; Probably can't get here: the front-end will have already done
+        ;; the constant multiply.
+        (x862-use-operator (%nx1-operator fixnum) seg vreg xfer (* fix1 fix2))
+        (progn
+          (if other
+            (let* ((reg (x862-one-untargeted-reg-form seg other *x862-arg-z*)))
+              (ensuring-node-target (target vreg)
+                (! multiply-immediate target reg (or fix1 fix2))))
+            (multiple-value-bind (rx ry)
+                (x862-two-untargeted-reg-forms seg num1 *x862-arg-y*
+                                               num2 *x862-arg-z*)
+              (ensuring-node-target (target vreg)
+                (! multiply-fixnums target rx ry))))
+          (^))))))
 
 (defx862 x862-nth-value nth-value (seg vreg xfer n form)
   (let* ((*x862-vstack* *x862-vstack*))
