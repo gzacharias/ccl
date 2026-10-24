@@ -3209,8 +3209,10 @@ to binary 0."
   
 (defmacro get-field-offset (accessor)
   (destructuring-bind (type-name field-name) (decompose-record-accessor accessor)
-    (let ((ftype (%foreign-type-or-record type-name)))
-      (%foreign-field-offset-form ftype field-name))))
+    (let* ((record-type (require-type (%foreign-type-or-record type-name) 'foreign-record-type))
+           (field (%find-foreign-record-type-field record-type field-name))
+           (bit-offset (foreign-record-field-offset field)))
+      `(values ,(floor bit-offset 8) ,(foreign-record-field-type field) ,bit-offset))))
 
 (defmacro record-length (recname)
   (destructuring-bind (recname &rest accessors) (if (symbolp recname)
