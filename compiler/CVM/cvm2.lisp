@@ -296,7 +296,20 @@
   (cvm2-bind t vars (mapcar #'nx1-afunc-ref afuncs) body p2decls))
 
 (defcvm2 labels (vars afuncs body p2decls)
-  (cvm2-bind nil vars (mapcar #'nx1-afunc-ref afuncs) body p2decls))
+  ;; A closure captures the vcells of the vars it inherits when it is made, so if a
+  ;; labels function closes over one defined after it, bind all the vars first and set
+  ;; them afterwards.
+  (if (loop for afunc in afuncs
+            for later-vars on (cdr vars)
+            thereis (loop for inner-var in (afunc-inherited-vars afunc)
+                          thereis (member (cvm2-var-inherited-from inner-var) later-vars)))
+    (let* ((indices (mapcar #'cvm2-binding-var vars)))
+      `($bc-let* ,(loop for index in indices collect `(,index ,(cvm2-quote nil)))
+                 ,(cvm2-progn (append (loop for index in indices
+                                            for afunc in afuncs
+                                            collect `($bc-lset ,index ,(cvm2-form (nx1-afunc-ref afunc))))
+                                      (list (cvm2-form body))))))
+    (cvm2-bind nil vars (mapcar #'nx1-afunc-ref afuncs) body p2decls)))
 
 (defun cvm2-bind (seq? vars vals body p2decls)
   (declare (ignore p2decls))
