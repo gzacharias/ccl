@@ -78,8 +78,8 @@
 (%fhave 'record-source-file #'bootstrapping-record-source-file)
 
 
-(setq *fasload-print* nil)
-(setq *save-doc-strings* t)
+(defparameter *fasload-print* nil)
+(defparameter *save-doc-strings* t)
 
 
 
