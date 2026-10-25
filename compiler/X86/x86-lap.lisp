@@ -214,14 +214,20 @@
 (defparameter *x86-lap-fixed-code-words* nil)
 (defvar *x86-lap-lfun-bits* 0)
 
+;;; One table for all x86 backends: the lap macros don't depend on the
+;;; backend they're defined in (they use TARGET-ARCH-CASE when expanded),
+;;; and this way they're found whatever *TARGET-BACKEND* was when they
+;;; were loaded (e.g. on a non-x86 cross-compiling host).
+(defvar *x86-lap-macros* (make-hash-table :test #'equalp))
+
 (defun x86-lap-macro-function (name)
-  (gethash (string name) (backend-lap-macros *target-backend*)))
+  (gethash (string name) *x86-lap-macros*))
 
 (defun (setf x86-lap-macro-function) (def name)
   (let* ((s (string name)))
     (when (gethash s x86::*x86-opcode-template-lists*)
       (error "~s already defines an x86 instruction." name))
-    (setf (gethash s (backend-lap-macros *target-backend*)) def)))
+    (setf (gethash s *x86-lap-macros*) def)))
 
 (defmacro defx86lapmacro (name arglist &body body)
   `(progn
