@@ -1457,7 +1457,33 @@ itself, by setting the status and exit-code fields.")
         (check-type var (or string symbol character))
         (check-type val string)))
     (push (native-untranslated-namestring program) args)
-    (let* ((token (list 0))
+    (let* ((proc (make-external-process :pid nil
+					:args args
+					:%status :running
+					:input nil
+					:output nil
+					:error nil
+					:token (list 0)
+					:status-hook status-hook
+					:external-format external-format)))
+      (%host-run-program proc
+                         :wait wait
+                         :input input :if-input-does-not-exist if-input-does-not-exist
+                         :output output :if-output-exists if-output-exists
+                         :error error :if-error-exists if-error-exists
+                         :element-type element-type
+                         :env env
+                         :sharing sharing
+                         :external-format external-format
+                         :silently-ignore-catastrophic-failures silently-ignore-catastrophic-failures)
+      proc))
+
+  #-cvm-target
+  (defun %host-run-program (proc &key wait input if-input-does-not-exist
+                                      output if-output-exists error if-error-exists
+                                      element-type env sharing external-format
+                                      silently-ignore-catastrophic-failures)
+    (let* ((args (external-process-args proc))
            (in-fd nil)
            (in-stream nil)
            (out-fd nil)
@@ -1465,16 +1491,7 @@ itself, by setting the status and exit-code fields.")
            (error-fd nil)
            (error-stream nil)
            (close-in-parent nil)
-           (close-on-error nil)
-           (proc (make-external-process :pid nil
-					:args args
-					:%status :running
-					:input nil
-					:output nil
-					:error nil
-					:token token
-					:status-hook status-hook
-					:external-format external-format)))
+           (close-on-error nil))
       (unwind-protect
            (progn
              (multiple-value-setq (in-fd in-stream close-in-parent close-on-error)
@@ -1528,8 +1545,39 @@ itself, by setting the status and exit-code fields.")
           (unless silently-ignore-catastrophic-failures
             (cerror "Pretend the program ran and failed" 'external-process-creation-failure :proc proc))
           ;; Currently can't happen.
-          (error "Bug: fork failed but status field not set?")))
-      proc))
+          (error "Bug: fork failed but status field not set?")))))
+
+  ;; limited capabilites available on the vm.
+  #+cvm-target
+  (defun %host-run-program (proc &key wait input output error env
+                                      silently-ignore-catastrophic-failures
+                                 &allow-other-keys)
+    (flet ((unsupported (test key val) (when test (error "Unsupported argument ~s ~s" key val))))
+      (unsupported (not wait) :wait wait)
+      (unsupported input :input input)
+      (unsupported env :env env)
+      (unsupported (external-process-status-hook proc) :status-hook (external-process-status-hook proc))
+      (unsupported (not (member error '(:output nil))) :error error)
+      (unsupported (not (or (member output '(nil t :stream)) (streamp output))) :output output))
+
+    (multiple-value-bind (exit-code text)
+        (cvm-run-program (external-process-args proc) (eq error :output) (not (null output)))
+      ;; If exit-code is nil, the program couldn't be run and text is the host's error message.
+      (cond ((null exit-code)
+             (setf (external-process-%status proc) :error
+                   (external-process-%exit-code proc) -1)
+             (unless silently-ignore-catastrophic-failures
+               (cerror "Pretend the program ran and failed"
+                       'external-process-creation-failure :proc proc)))
+            (t
+             (setf (external-process-%status proc) :exited
+                   (external-process-%exit-code proc) exit-code)
+             (case output
+               ((nil))
+               ((t) (write-string text *standard-output*))
+               (:stream (setf (external-process-output proc) (make-string-input-stream text)))
+               (t (write-string text output)))))))
+
 
 
 

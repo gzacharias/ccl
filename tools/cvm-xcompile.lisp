@@ -133,9 +133,6 @@
                            (backend-target-arch *target-backend*))))))))
 
 (defun cvm-load-cross-setup (target-setup-file)
-  ;; xfasload puts LOCAL-VC-REVISION (git/svn describe, via RUN-PROGRAM) in the image's
-  ;; version string.  The VM can't run programs, so the image's version won't include it.
-  (%fhave 'local-vc-revision #'(lambda () nil))
   (load-native-fasload)
   (load-cross-db-io)
   (load target-setup-file)

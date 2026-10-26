@@ -154,6 +154,8 @@
                 cvm-get-kernel-global-ptr
                 cvm-xdisassemble
 
+                cvm-run-program
+
                 make-bclambda-lfun
                 lfun-bclambda))
 
