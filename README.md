@@ -1,15 +1,15 @@
 # bc-compiler
 
 This is a branch of Clozure CL which can compile CCL code into lisp-like bytecode for
-loading into [ccl-vm](https://github.com/gzacharias/ccl-vm), a virtual ccl runtime that can
+loading into [ccl-vm](https://github.com/gzacharias/ccl-vm), a virtual CCL runtime that can
 run inside any common lisp.  Instead of fasl files, it produces `.bc` files containing plain
 text lisp expressions, which can be copied to any machine or checked into source control.
 
 This branch is merged periodically with upstream Clozure CL `master`.  The source of the most recent merge
 is stored as the `upstream-base` branch.
 
-This branch has changes that implement the bc compiler, but is otherwise a fully functional
-ccl, including supporting the IDE.
+This branch has changes that implement the bc compiler, but is otherwise a fully functional CCL,
+including supporting the IDE.
 
 
 ## Implementation strategy
@@ -20,23 +20,23 @@ Unlike other compiler backends, this backend is always loaded and available rega
 
 ## Interaction with upstream
 
-The `bc-compiler` is a branch of ccl containing the bytecode cross compiler and generally ccl system changes necessary to support it.  This is the main project branch.
+The `bc-compiler` is a branch of CCL containing the bytecode cross compiler and any general CCL source changes necessary to support it.  This is the main project branch.
 
 Upstream changes come in by fast forwarding `upstream-base` to the current upstream `master` and merging into `bc-compiler`.
 
-Changes to core ccl that stand on their own (bug fixes and improvements that seem generally advisable) are committed on `bc-compiler` like everything else, and are also offered upstream as pull requests.  Once upstream accepts one, the next merge from upstream brings it in again.
+Changes to core CCL that stand on their own (bug fixes and improvements that seem generally advisable) are committed on `bc-compiler` like everything else, and are also offered upstream as pull requests.  Once upstream accepts one, the next merge from upstream brings it in again.
 
 ## Building and cross-compiling
 
-Note: So far bc-compiler has only been tested with ccl running on an intel mac, as that's all I have.
+Note: So far bc-compiler has only been tested with CCL running on an intel mac, as that's all I have.
 
 **1. Get the bc-compiler**
 ```
 git clone https://github.com/gzacharias/ccl.git
 cd ccl
 git checkout bc-compiler
-# download ccl binary assets for the base version, which is ccl 1.13
-curl -L -O https://github.com/Clozure/ccl/releases/download/v1.13/darwinx86.tar.gz
+# download ccl binary assets for the base version, which is ccl 1.14
+curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/darwinx86.tar.gz
 tar -xzf darwinx86.tar.gz
 rm darwinx86.tar.gz
 ```
