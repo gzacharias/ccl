@@ -123,7 +123,7 @@
   (or (find-package "CVMDARWIN-FFI")
       (make-package "CVMDARWIN-FFI" :use "COMMON-LISP")))
 
-;; To be defined in the host.  ***TODO: CHECK THIS ONCE IN A WHILE
+;; To be defined in the host.  Check this once in a while, see https://github.com/gzacharias/ccl/issues/3
 (declaim (ftype function
                 cvm-symbolp
                 cvm-ivector-typecode-p
@@ -133,13 +133,10 @@
                 cvm-make-gf
                 cvm-make-writer-method
                 cvm-make-reader-method
-                cvm-make-gf
                 cvm-make-slot-getter
                 cvm-make-slot-setter
                 cvm-make-slot-lookup-fn
                 cvm-make-type-fn
-
-                cvm-%kernel-import
 
                 cvm-external-call
                 cvm-access-foreign-field
@@ -159,6 +156,10 @@
                 make-bclambda-lfun
                 lfun-bclambda
                 map-bclambda-immediates))
+
+;; This is never actually called (cvm2 turns calls to it into $bc-kernel-call), but
+;; cvm-expand-ff-call generates the calls, so it's needed to avoid warnings.
+(declaim (ftype function cvm-%kernel-import))
 
 
 ;; foreign-type-to-repesentation-type gets into pasing and databases and stuff we don't support.
