@@ -157,7 +157,8 @@
                 cvm-run-program
 
                 make-bclambda-lfun
-                lfun-bclambda))
+                lfun-bclambda
+                map-bclambda-immediates))
 
 
 ;; foreign-type-to-repesentation-type gets into pasing and databases and stuff we don't support.
