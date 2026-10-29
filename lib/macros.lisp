@@ -829,9 +829,16 @@ form is not evaluated if the variable is already BOUNDP."
   (let ((fn (gensym))
 	(lfv (gensym))
 	(i (gensym)))
+    ;; The first immediate's index depends on the target, which (when cross-compiling) isn't
+    ;; the lisp this macro was compiled for, so decide when the macro is expanded.
     `(loop with ,fn = ,function
            with ,lfv = (function-to-function-vector ,fn)
-           for ,i from #+ppc-target 1 #+x86-target (%function-code-words ,fn) #+arm-target 2 #+arm64-target 1 #+cvm-target 0
+           for ,i from ,(ecase (backend-target-arch-name *target-backend*)
+                          ((:ppc32 :ppc64) 1)
+                          ((:x8632 :x8664) `(%function-code-words ,fn))
+                          (:arm 2)
+                          (:arm64 1)
+                          (:cvm 0))
             below (%i- (uvsize  ,lfv) 1)
            as ,var = (%svref ,lfv ,i)
            ,@loop-body)))
