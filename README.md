@@ -74,7 +74,7 @@ This puts the .bc files in the directory specified by `:output` (default `"ccl:c
 ## Status
 
 * bc-compiler running in ccl-vm can recompile itself (see ccl-vm README)
-* bc-compiler running in ccl-vm can cross-compile a native CCL (see ccl-vm README)  So far this has been done for one target, darwinx8664 (Intel macOS): ccl-vm hosted in sbcl compiles ccl's sources and writes a bootstrapping image that the native kernel boots.
+* bc-compiler running in ccl-vm can cross-compile a native CCL (see ccl-vm README)  So far this has been done for one target, darwinx8664 (Intel macOS): ccl-vm, hosted in sbcl or ccl, compiles ccl's sources and writes a bootstrapping image that the native kernel boots.
 * Only the macOS target is supported (the target is called `:darwincvm`), because (at least) of issues with FFI constants.
 * In theory the host running `ccl:bc-compile-ccl` shouldn't matter, but it has only been tested on an intel mac.
 
