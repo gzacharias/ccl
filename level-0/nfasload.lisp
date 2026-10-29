@@ -833,7 +833,6 @@
 (defvar *modules* nil)
 
 ;;; Bootstrapping version
-#-cvm-target
 (defun provide (module-name)
   (push (string module-name) *modules*))
 
