@@ -292,6 +292,12 @@
           (ensure-binding-index symbol))
         (%epushval s symbol)))))
 
+;;; ccl-vm implements packages and their symbol tables itself, and does its own cold load, so
+;;; that code is #-cvm-target.  The rest of this file, including the fasl reader, is loaded in
+;;; the VM like the rest of level-0 (a cross-compiler uses %FASLOAD to read the target's fasls).
+#-cvm-target
+(progn
+
 (defvar *package-refs*)
 (setq *package-refs* (make-hash-table :test #'equal))
 (defvar *package-refs-lock*)
@@ -381,6 +387,8 @@
                      ((%find-pkg xthing))
                      (errorp (%kernel-restart $xnopkg xthing)))))
             (t (report-bad-arg thing 'simple-string))))))
+
+) ; #-cvm-target progn
 
 (defun %fasl-vpackage (s)
   (multiple-value-bind (str len new-p) (%fasl-vreadstr s)
@@ -825,6 +833,7 @@
 (defvar *modules* nil)
 
 ;;; Bootstrapping version
+#-cvm-target
 (defun provide (module-name)
   (push (string module-name) *modules*))
 
@@ -979,6 +988,11 @@
 
 (defun %fasload (string &optional (table *fasl-dispatch-table*))
   ;;(dbg string) 
+  ;; In ccl-vm the lisp's own compiled files are .bc files, which the VM loads itself.  The
+  ;; reader below is for native fasls (a cross-compiler's xfasload reads the target's).
+  #+cvm-target
+  (when (%cvm-fasl-file-p string)
+    (return-from %fasload (%cvm-fasload string)))
   (when (and *%fasload-verbose*
 	     (not *load-verbose*))
     (%string-to-stderr ";Loading ") (pdbg string))
@@ -1050,6 +1064,10 @@
               (values nil err))
             (values t nil)))))))
 
+
+;;; The rest of the file is packages' symbol tables and the cold load (see above).
+#-cvm-target
+(progn
 
 (defun %new-package-hashtable (size)
   (%initialize-htab (cons nil (cons 0 0)) size))
@@ -1292,3 +1310,5 @@
                       (when (> idx max)
                         (setq max idx))))))
     max))
+
+) ; #-cvm-target progn
