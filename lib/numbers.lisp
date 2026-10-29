@@ -46,7 +46,11 @@
              (/ -0d0))
 	(ccl:set-fpu-mode :division-by-zero division-by-zero))))
 
+;;; The NaN that INF + -INF makes depends on the hardware (x86's has the sign bit set, arm64's
+;;; doesn't), and the CVM's comes from whatever lisp compiles it, so give it fixed bits.
 (defconstant double-float-nan
+  #+cvm-target #.(double-float-from-bits #x7ff80000 0)
+  #-cvm-target
   #.(let ((invalid (get-fpu-mode :invalid)))
       (declare (notinline +))
       (unwind-protect
