@@ -205,8 +205,8 @@
             ;; implementation in ffi-arm64; build it alongside the OS
             ;; module.
             (if (memq target '(:darwinarm64 :linuxarm64))
-              (list 'ffi-arm64 ffi))
-              (and ffi (list ffi)))))
+              (list 'ffi-arm64 ffi)
+              (and ffi (list ffi))))))
 
 
 (defun target-compiler-modules (&optional (target
