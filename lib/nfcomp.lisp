@@ -236,11 +236,6 @@ Will differ from *compiling-file* during an INCLUDE")
                                       :inferred
                                       external-format))
            (*fasl-setf-name-alias-alist* ())
-           ;; .bc files are text, and should come out the same whatever the compiling lisp
-           ;; did before, so start the gensym names in each file afresh.
-           (*gensym-counter* (if (eq (backend-name target-backend) :darwincvm)
-                               0
-                               *gensym-counter*))
            (forms nil))
       (let ((current *outstanding-deferred-warnings*) last)
         (when (and current
