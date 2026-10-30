@@ -28,36 +28,17 @@
 
 
 
+;;; Given as IEEE bits rather than computed, so that they're the target's values even when
+;;; the host compiling this isn't the target.  The NaN is the one the target's hardware makes
+;;; for INF + -INF: x86's has the sign bit set, the others' don't.
 (defconstant double-float-positive-infinity
-  #.(let* ((division-by-zero (get-fpu-mode  :division-by-zero)))
-      (declare (notinline /))
-      (unwind-protect
-           (progn
-             (ccl:set-fpu-mode :division-by-zero nil)
-             (/ 0d0))
-	(ccl:set-fpu-mode :division-by-zero division-by-zero))))
+  #.(double-float-from-bits #x7ff00000 0))
 
 (defconstant double-float-negative-infinity
-  #.(let* ((division-by-zero (get-fpu-mode  :division-by-zero)))
-      (declare (notinline /))
-      (unwind-protect
-           (progn
-             (ccl:set-fpu-mode :division-by-zero nil)
-             (/ -0d0))
-	(ccl:set-fpu-mode :division-by-zero division-by-zero))))
+  #.(double-float-from-bits #xfff00000 0))
 
-;;; The NaN that INF + -INF makes depends on the hardware (x86's has the sign bit set, arm64's
-;;; doesn't), and the CVM's comes from whatever lisp compiles it, so give it fixed bits.
 (defconstant double-float-nan
-  #+cvm-target #.(double-float-from-bits #x7ff80000 0)
-  #-cvm-target
-  #.(let ((invalid (get-fpu-mode :invalid)))
-      (declare (notinline +))
-      (unwind-protect
-	   (progn
-	     (set-fpu-mode :invalid nil)
-	     (+ double-float-positive-infinity double-float-negative-infinity))
-	(set-fpu-mode :invalid invalid))))
+  #.(double-float-from-bits #+x86-target #xfff80000 #-x86-target #x7ff80000 0))
 
 (defun parse-float (str len off)  
   ; we cant assume this really is a float but dont call with eg s1 or e1
