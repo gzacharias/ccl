@@ -18,6 +18,12 @@
 
 (require 'systems)
 
+;;; DOUBLE-FLOAT-NAN used to have the sign bit set on x86; now it's the same NaN everywhere.
+;;; DEFINE-CONSTANT in an image from before then traps comparing the two NaNs when the new
+;;; value is loaded, so forget the old one first.  Remove after the next release.
+(when (and (boundp 'double-float-nan) (%double-float-sign double-float-nan))
+  (undefine-constant 'double-float-nan))
+
 (defparameter *sysdef-modules*
   '(systems compile-ccl))
 
