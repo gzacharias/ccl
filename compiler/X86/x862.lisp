@@ -12032,10 +12032,11 @@
         (compile-named-function def :target target)
       (signal-or-defer-warnings warnings nil)
       (when disassemble
-        (format t "~%~%")
-        (apply #'x86-disassemble-xfunction
-               xlfun
-               (unless symbolic-names (list nil))))
+        (let ((*target-backend* backend))
+          (format t "~%~%")
+          (apply #'x86-disassemble-xfunction
+                 nil xlfun
+                 (unless symbolic-names (list :symbolic-names nil)))))
       xlfun)))
 
 #-x8632-target
@@ -12056,8 +12057,8 @@
 	(let ((*target-backend* backend))
 	  (format t "~%~%")
 	  (apply #'x86-disassemble-xfunction
-		 xlfun
-		 (unless symbolic-names (list nil)))))
+		 nil xlfun
+		 (unless symbolic-names (list :symbolic-names nil)))))
       xlfun)))
 
 (defun x8664-incomingo-register-arg-number (i n)

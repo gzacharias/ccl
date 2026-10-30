@@ -18,9 +18,7 @@
                   t)
   (fixup-x8664-backend)
   (setup-x8664-ftd *darwinx8664-backend*)
-  ;; #+x8664-target/#+x8632-target, so it only compiles on an x86 host.
-  ;; x86-disassemble fails to load  (see bug #688)
-  (update-modules '(x86-lapmacros #+bug688 x86-disassemble ffi-darwinx8664) t)
+  (update-modules '(x86-lapmacros x86-disassemble ffi-darwinx8664) t)
   (update-modules *x8664-xload-modules* t)
   ;; If you're loading into a linuxx8664 host, you'll need to manually
   ;; evaluate the *darwinx8664-backend* defvar in x8664-backend.lisp and
