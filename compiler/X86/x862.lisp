@@ -798,7 +798,8 @@
           (with-dll-node-freelist ((uuo-frag-list make-frag-list) *frag-freelist*)
             (let* ((*x86-lap-labels* nil)
                    (instruction (x86::make-x86-instruction))
-                   ;; MAKE-SYMBOL, not GENSYM: compiling shouldn't use up *GENSYM-COUNTER*.
+                   ;; Labels only the assembler sees: MAKE-SYMBOL, not GENSYM, so that
+                   ;; compiling doesn't use up *GENSYM-COUNTER*.
                    (end-code-tag (make-symbol "END-CODE"))
                    (start-tag (make-symbol "START"))
                    (srt-tag (make-symbol "SRT"))
