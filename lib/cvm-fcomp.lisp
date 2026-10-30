@@ -29,6 +29,8 @@
          (*package* (find-package :ccl))
          (*save-doc-strings* t)
          (*fasl-save-doc-strings* t)
+         ;; So that gensyms dumped in the .bc files get the same names in every build.
+         (*gensym-counter* 0)
          (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*))
          (target (backend-name *cvm-backend*)))
 
