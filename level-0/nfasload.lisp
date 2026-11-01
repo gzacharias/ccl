@@ -292,6 +292,10 @@
           (ensure-binding-index symbol))
         (%epushval s symbol)))))
 
+
+#-cvm-target ;;; ccl-vm implements these package support functions directly in the runtime.
+(progn
+
 (defvar *package-refs*)
 (setq *package-refs* (make-hash-table :test #'equal))
 (defvar *package-refs-lock*)
@@ -381,6 +385,8 @@
                      ((%find-pkg xthing))
                      (errorp (%kernel-restart $xnopkg xthing)))))
             (t (report-bad-arg thing 'simple-string))))))
+
+) ; #-cvm-target progn
 
 (defun %fasl-vpackage (s)
   (multiple-value-bind (str len new-p) (%fasl-vreadstr s)
@@ -979,6 +985,10 @@
 
 (defun %fasload (string &optional (table *fasl-dispatch-table*))
   ;;(dbg string) 
+  #+cvm-target ;; loading .bc files is too different...
+  (when (%cvm-fasl-file-p string)
+    (assert (eq table *fasl-dispatch-table*))
+    (return-from %fasload (%cvm-fasload string)))
   (when (and *%fasload-verbose*
 	     (not *load-verbose*))
     (%string-to-stderr ";Loading ") (pdbg string))
@@ -1050,6 +1060,9 @@
               (values nil err))
             (values t nil)))))))
 
+
+#-cvm-target  ;;; ccl-vm implements package hash tables directly in the runtime.
+(progn
 
 (defun %new-package-hashtable (size)
   (%initialize-htab (cons nil (cons 0 0)) size))
@@ -1247,8 +1260,11 @@
   (let* ((sym (make-symbol pname)))
     (%insert-symbol sym package internal-idx external-idx force-export)))
 
+) ; #-cvm-target progn
 
 
+#-cvm-target ;; ccl-vm implements the cold load in the runtime.
+(progn 
 
 ;;; The initial %toplevel-function% sets %toplevel-function% to NIL;
 ;;; if the %fasload call fails, the lisp should exit (instead of
@@ -1292,3 +1308,5 @@
                       (when (> idx max)
                         (setq max idx))))))
     max))
+
+) ; #-cvm-target progn

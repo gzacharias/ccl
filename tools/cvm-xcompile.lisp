@@ -10,45 +10,6 @@
 
 (in-package "CCL")
 
-;;; xfasload reads the cross-compiled fasls with CCL's native fasl reader (%FASLOAD from
-;;; level-0/nfasload.lisp, with its own dispatch table).  ccl-vm doesn't load nfasload: it
-;;; implements %FASLOAD (for .bc files) and nfasload's package/symbol-table functions
-;;; itself.  So evaluate only the parts of nfasload.lisp that the VM doesn't provide, and
-;;; make %FASLOAD with a dispatch table argument use nfasload's version.
-(defun toplevel-defined-function-names (form)
-  (when (consp form)
-    (case (car form)
-      ((defun %fhave) (list (let* ((name (cadr form)))
-                              (if (and (consp name) (eq (car name) 'quote)) (cadr name) name))))
-      ((progn let let* eval-when) (mapcan #'toplevel-defined-function-names (cddr form))))))
-
-(defun load-native-fasload ()
-  (let* ((vm-fasload #'%fasload)
-         (*package* (find-package "CCL"))
-         (eof (list nil))
-         (skipped ()))
-    (with-open-file (stream "ccl:level-0;nfasload.lisp")
-      (loop for form = (read stream nil eof)
-            until (eq form eof)
-            do (let* ((names (toplevel-defined-function-names form)))
-                 (cond ((equal names '(%fasload))
-                        (eval `(defun %native-fasload ,@(cddr form))))
-                       ((some #'fboundp names)
-                        (push names skipped))
-                       ((and (consp form) (member (car form) '(setq setf defconstant))
-                             (symbolp (cadr form)) (boundp (cadr form))
-                             (symbol-value (cadr form)))
-                        (push (cadr form) skipped))
-                       ((and (consp form) (eq (car form) 'defvar) (eq (cadr form) '%toplevel-function%))
-                        (push (cadr form) skipped))
-                       (t (eval form))))))
-    (format t "~&;; nfasload: kept the VM's definitions of ~s~%" (reverse skipped))
-    (%fhave '%fasload
-            #'(lambda (string &optional (table nil table-p))
-                (if table-p
-                  (%native-fasload string table)
-                  (funcall vm-fasload string))))))
-
 ;;; The bundle's db-io leaves out the interface-database lookups that only a target with an
 ;;; interface database needs (#-CVM-TARGET); a cross-compiler for a real target needs them.
 (defun load-cross-db-io ()
@@ -133,7 +94,6 @@
                            (backend-target-arch *target-backend*))))))))
 
 (defun cvm-load-cross-setup (target-setup-file)
-  (load-native-fasload)
   (load-cross-db-io)
   (load target-setup-file)
   ;; The target setup file loads xfasload.
