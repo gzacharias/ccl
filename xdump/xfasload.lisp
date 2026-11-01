@@ -969,7 +969,10 @@
      xvec 
      (xload-make-cons
       (xload-integer (cadr htab))
-      (xload-integer (cddr htab))))))
+      ;; ccl-vm's tables are (htvec count . host-hash-table), with the symbols in HTVEC in no
+      ;; particular order.  That's all right, since the target rehashes every package table
+      ;; at boot before looking up any symbols, but there's no limit to copy.
+      (xload-integer #-cvm-target (cddr htab) #+cvm-target len)))))
 
 (defun xload-finalize-packages ()
   (dolist (pair *xload-aliased-package-addresses*)
