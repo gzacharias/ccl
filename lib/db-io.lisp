@@ -845,13 +845,11 @@ satisfy the optional predicate PREDICATE."
       (setf (interface-dir-functions-interface-db-file dir)
 	    (open-interface-db-pathname "functions.cdb" dir))))
 
-#-CVM-TARGET
 (defun interface-constant-value (ftd sym)
   (do-interface-dirs (d ftd)
     (let* ((v (db-lookup-constant (db-constants d) sym)))
       (when v (return v)))))
 
-#-CVM-TARGET
 (defun interface-var-type (ftd string)
   (with-cstrs ((cstring string))
     (do-interface-dirs (d ftd)
@@ -867,7 +865,6 @@ satisfy the optional predicate PREDICATE."
             (let* ((vartype (extract-db-type value ftd)))
               (when vartype (return vartype)))))))))
 
-#-CVM-TARGET
 (defun interface-function (ftd sym)
   (do-interface-dirs (d ftd)
     (let* ((f (db-lookup-function (db-functions d) sym)))

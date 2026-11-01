@@ -10,26 +10,6 @@
 
 (in-package "CCL")
 
-;;; The bundle's db-io leaves out the interface-database lookups that only a target with an
-;;; interface database needs (#-CVM-TARGET); a cross-compiler for a real target needs them.
-(defun load-cross-db-io ()
-  (let* ((*package* (find-package "CCL"))
-         (eof (list nil))
-         (wanted '(interface-constant-value interface-var-type interface-function)))
-    (with-open-file (stream "ccl:lib;db-io.lisp")
-      (let* ((*features* (remove :cvm-target *features*)))
-        ;; Stop when they've been found: later forms use #. on compile-time-only constants.
-        (loop with missing = (copy-list wanted)
-              for form = (if missing (read stream nil eof) eof)
-              until (eq form eof)
-              do (when (and (consp form) (eq (car form) 'defun) (member (cadr form) missing))
-                   (setq missing (remove (cadr form) missing))
-                   (unless (fboundp (cadr form))
-                     (eval form))))))
-    (dolist (name wanted)
-      (unless (fboundp name)
-        (error "Didn't find ~s in db-io.lisp" name)))))
-
 ;;; Package hash tables.  xload-save-htab copies a package's (htvec count . limit) into
 ;;; the image, where the target's FIND-SYMBOL will probe it with its own hash function.
 ;;; But the VM's packages aren't laid out that way (the VM keeps the symbols unhashed and
@@ -94,7 +74,6 @@
                            (backend-target-arch *target-backend*))))))))
 
 (defun cvm-load-cross-setup (target-setup-file)
-  (load-cross-db-io)
   (load target-setup-file)
   ;; The target setup file loads xfasload.
   (install-target-htab-layout))
