@@ -1055,8 +1055,9 @@
                                    (%aset1 . $bc-aset1)
                                    (%aref1 . $bc-aref1)
                                    (length . $bc-length))))))
-    (assert op () "Unknown builtin ~s" builtin)
-    `(,op ,@(mapcar #'cvm2-form args))))
+    (if op
+      `(,op ,@(mapcar #'cvm2-form args))
+      `($bc-funcall ,(cvm2-quote builtin) ,@(mapcar #'cvm2-form args)))))
 
 
 (defcvm2 %reference-external-entry-point (arg)
