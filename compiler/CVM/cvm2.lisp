@@ -894,7 +894,11 @@
   (cvm2-boolean-form cc '$bc-base-char-p (cvm2-form char)))
 
 ;; See if this ever needs to cheat...
-(defcvm2 (%%ineg %ineg minus1) (x) `($bc-sub2 ,(cvm2-quote 0) ,(cvm2-form x)))
+(defcvm2 (%%ineg %ineg) (x) `($bc-sub2 ,(cvm2-quote 0) ,(cvm2-form x)))
+
+;; Not (- 0 x): that's +0.0 for 0.0, and leaves the sign of a NaN alone.
+(defcvm2 (minus1 %double-float-negate %single-float-negate) (x)
+  `($bc-funcall ,(cvm2-quote '%negate) ,(cvm2-form x)))
 
 (defcvm2-fn (%complex-single-float-realpart %complex-double-float-realpart realpart)
   (arg) $bc-complex-realpart)
