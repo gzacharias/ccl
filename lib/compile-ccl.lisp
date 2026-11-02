@@ -293,25 +293,6 @@
     ))
 
 
-;; TODO: get rid of this and make each file be #-cvm-target (progn ..)
-;; Note -- this is also listed in ccl-vm *modules-not-in-bundle*, update that whenever update this
-(defparameter *modules-not-for-cvm*
-  '(edit-callers
-    cover
-    leaks
-    core-files
-    dominance
-    backtrace-lds)) ;; TODO: either make this load, or get rid of backtrace as well.
-
-
-
-
-(defun target-modules (modules &optional (target (backend-name *host-backend*)))
-  (if (not (listp modules)) (setq modules (list modules)))
-  (case target
-    (:darwincvm (remove-if (lambda (module) (member module *modules-not-for-cvm*)) modules))
-    (t modules)))
-
 (defun target-level-1-modules (&optional (target (backend-name *host-backend*)))
   (append *level-1-modules*
 	  (case target
@@ -352,7 +333,7 @@
 
 ;compile if needed.
 (defun target-compile-modules (modules target force-compile)
-  (setq modules (target-modules modules target))
+  (if (not (listp modules)) (setq modules (list modules)))
   (in-development-mode
    (dolist (module modules t)
      (multiple-value-bind (fasl sources) (find-module module target)
@@ -383,7 +364,7 @@
 ;;;compile if needed, load if recompiled.
 
 (defun update-modules (modules &optional force-compile)
-  (setq modules (target-modules modules))
+  (if (not (listp modules)) (setq modules (list modules)))
   (in-development-mode
    (dolist (module modules t)
      (multiple-value-bind (fasl sources) (find-module module)
@@ -460,7 +441,7 @@
     (compile-modules *aux-modules* force)))
 
 (defun require-update-modules (modules &optional force-compile)
-  (setq modules (target-modules modules))
+  (if (not (listp modules)) (setq modules (list modules)))
   (in-development-mode
     (dolist (module modules)
     (require-modules module)
@@ -509,7 +490,7 @@
           (error "Can't find ~S or ~S" fasl source)))))
 
 (defun require-modules (modules &optional force-load)
-  (setq modules (target-modules modules))
+  (if (not (listp modules)) (setq modules (list modules)))
   (let ((*package* (find-package :ccl)))
     (dolist (m modules t)
       (require-module m force-load))))

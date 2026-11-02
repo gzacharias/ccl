@@ -428,6 +428,7 @@ int keepcost
 
 ) ;; end of linux-only code
 
+#-cvm-target ;; The VM has no thread allocation pointers or memory areas.
 (defun get-allocation-sentinel (&key (gc-first t))
   ;; Return the object with the highest address that can be guaranteed to be at a lower
   ;; address than any newer objects.
