@@ -58,7 +58,8 @@
                 :target-specific-features
                 '(:cvm :cvm-target :darwin-target :darwincvm-target
                        ;; Who wants to know about endianness?
-                       :64-bit-target :little-endian-target)
+                       :64-bit-target :little-endian-target
+                       :unix :darwin)
                 :target-fasl-pathname (make-pathname :type "bc")
                 :target-platform (logior platform-word-size-64
                                          platform-cpu-cvm
