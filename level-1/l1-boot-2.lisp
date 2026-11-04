@@ -328,6 +328,12 @@ present and false otherwise. This variable shouldn't be set by user code.")
 
       (bin-load "cvm2")
 
+      ;; Now that the backend is loaded, add backend features.
+      (dolist (f (backend-target-specific-features *host-backend*))
+        (pushnew f *features*))
+      (dolist (f (backend-target-host-features *host-backend*))
+        (pushnew f *features*))
+
       (bin-load-provide "LEVEL-2" "level-2")
       (bin-load-provide "MACROS" "macros")
       (bin-load-provide "SETF" "setf")
