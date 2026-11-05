@@ -28,7 +28,7 @@ Changes to core CCL that stand on their own (bug fixes and improvements that see
 
 ## Building and cross-compiling
 
-Note: So far bc-compiler has only been tested with CCL running on an intel mac, as that's all I have.
+Note: So far bc-compiler has been tested with CCL running on Intel macOS and on x86-64 Linux.
 
 **1. Get the bc-compiler**
 ```
@@ -36,11 +36,16 @@ git clone https://github.com/gzacharias/ccl.git
 cd ccl
 git checkout bc-compiler
 # download ccl binary assets for the base version, which is ccl 1.14
-# for example, for Intel Mac, do:
+# for Intel Mac:
 curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/darwinx86.tar.gz
 tar -xzf darwinx86.tar.gz
 rm darwinx86.tar.gz
 alias ccl=./dx86cl64
+# or for x86-64 Linux:
+curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/linuxx86.tar.gz
+tar -xzf linuxx86.tar.gz
+rm linuxx86.tar.gz
+alias ccl=./lx86cl64
 ```
 
 **2. Rebuild CCL from this branch.** The branch adds new files to the build, so load the updated `compile-ccl`
@@ -76,7 +81,7 @@ This puts the .bc files in the directory specified by `:output` (default `"ccl:c
 * bc-compiler running in ccl-vm can recompile itself (see ccl-vm README)
 * bc-compiler running in ccl-vm can cross-compile a native CCL (see ccl-vm README)  So far this has been done for one target, darwinx8664 (Intel macOS): ccl-vm, hosted in sbcl or ccl, compiles ccl's sources and writes a bootstrapping image that the native kernel boots.
 * Only the macOS target is supported (the target is called `:darwincvm`), because (at least) of issues with FFI constants.
-* In theory the host running `ccl:bc-compile-ccl` shouldn't matter, but it has only been tested on an intel mac.
+* In theory the host running `ccl:bc-compile-ccl` shouldn't matter.  So far this has been tested on x8664 MacOS and x8664 Linux, and verified that they produce byte-identical bundles.
 
 ## License
 
