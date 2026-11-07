@@ -71,17 +71,20 @@ ccl -n
 (ccl:bc-compile-ccl :force t :output "ccl:ccl-bc;")
 ```
 
-This puts the .bc files in the directory specified by `:output` (default `"ccl:ccl-bc;"`).  (Copies of the .bc files are also left in the sources, but don't rely on that, it's a bug.)
+This puts the .bc files in the directory specified by `:output` (default `"ccl:ccl-bc;"`).
 
 
 **4. Run it in ccl-vm.** See [ccl-vm README](https://github.com/gzacharias/ccl-vm#readme) for details.
 
 ## Status
 
-* bc-compiler running in ccl-vm can recompile itself (see ccl-vm README)
-* bc-compiler running in ccl-vm can cross-compile a native CCL (see ccl-vm README)  So far this has been done for one target, darwinx8664 (Intel macOS): ccl-vm, hosted in sbcl or ccl, compiles ccl's sources and writes a bootstrapping image that the native kernel boots.
+* bc-compiler is is a fully functional ccl fork that passes all ccl-tests on MacOS arm64 and x8664 and Linux arm64 and x8664 (there is no reason to believe it wouldn't pass on other hosts, I just don't have the means to test them).
+* bc-compiler produces byte-identical bc bundles running in any of the 4 tested hosts.
 * Only the macOS target is supported (the target is called `:darwincvm`), because (at least) of issues with FFI constants.
-* In theory the host running `ccl:bc-compile-ccl` shouldn't matter.  So far this has been tested on x8664 MacOS and x8664 Linux, and verified that they produce byte-identical bundles.
+* bc-compiler running in ccl-vm can compile itself (see ccl-vm README)
+* bc-compiler running in ccl-vm can cross-compile itself for the darwinx8664 target (see ccl-vm README)
+* bc-compiler running in ccl-vm cannot compile stock ccl at this time. (See issue #2)
+
 
 ## License
 
