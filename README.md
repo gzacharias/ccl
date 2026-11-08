@@ -16,7 +16,7 @@ including supporting the IDE.
 
 The bc-compiler is implemented as a new backend to the compiler, stored in `compiler/CVM/`, and the `.bc` files are produced by a modified file compiler in `lib/cvm-fcomp.lisp`.
 
-Unlike other compiler backends, this backend is always loaded and available regardless of the host it's running on.  When running in the ccl-vm host, it serves as the host backend.  When running on any other host, it is invoked as a cross-compiler via `ccl:bc-compile-ccl`.
+When running in the ccl-vm host,  the CVM backend serves as the host backend.  When running in any other host, it is invokved as a cross-compiler as detailed below.
 
 ## Interaction with upstream
 
@@ -68,6 +68,7 @@ ccl -n
 
 ```
 ccl -n
+(load "ccl:tools;xdarwincvm.lisp")
 (ccl:bc-compile-ccl :force t :output "ccl:ccl-bc;")
 ```
 

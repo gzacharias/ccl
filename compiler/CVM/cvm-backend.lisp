@@ -104,8 +104,7 @@
 ;;  and stored in *host-backend* (and install-standard-foreign-types is then called on it from l1-boot-2
 ;;  after that's defined).
 ;;
-;; When running in another host, this file loads before foreign-types, so make-ftd and
-;; install-standard-foreign-types are not defined yet.  l1-boot-2 calls SETUP-CVM-FTD after loading foreign-types.
+;; In another host, LOAD-CVM-BACKEND (tools/xdarwincvm.lisp) loads this file and then calls SETUP-CVM-FTD.
 ;; (If this file is reloaded into a running lisp, def-known-backend carries the old ftd over.)
 #-cvm-target
 (defun setup-cvm-ftd ()

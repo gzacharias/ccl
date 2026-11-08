@@ -52,16 +52,6 @@
   (assert (or (consp tag) (vectorp tag)))
   (get-lex-vcell tag t))
 
-#-cvm-target
-(defun make-bclambda-lfun (bclambda)
-  (let ((xfn (%alloc-misc 1 target::subtag-xfunction)))
-    (setf (uvref xfn 0) bclambda)
-    xfn))
-
-#-cvm-target
-(defun lfun-bclambda (xfn)
-  (uvref (require-type xfn 'xfunction) 0))
-
 (defmacro bclambda-bits (bclambda) `(car (last (third ,bclambda))))
 
 (defun cvm2-compile (afunc &optional lambdaform record-symbols)  ;;x862-compile

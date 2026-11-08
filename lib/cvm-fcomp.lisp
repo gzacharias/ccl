@@ -1,104 +1,18 @@
 (in-package :ccl)
 
-#-cvm-target (export 'bc-compile-ccl)
+;; The CVM file compiler: writes the .bc files.  Loaded in every host, like nfcomp, which calls it.
 
+;; In the VM these are host functions (see cvm-backend).
+#-cvm-target
+(defun make-bclambda-lfun (bclambda)
+  (let ((xfn (%alloc-misc 1 target::subtag-xfunction)))
+    (setf (uvref xfn 0) bclambda)
+    xfn))
 
-#+cvm-target
-(defun xload-level-0 (&optional force)
-  (declare (ignore force))
-  (cvm-compile-level-0))
+#-cvm-target
+(defun lfun-bclambda (xfn)
+  (uvref (require-type xfn 'xfunction) 0))
 
-(defun cvm-compile-level-0 ()
-  ;; TODO: Maybe it's time to make a *level-0-files* so don't rely on contents of directories..
-  (assert (eq *target-backend* *cvm-backend*))
-  (let* ((*ccl-system*
-          (loop for dir in '("ccl:level-0;" "ccl:level-0;CVM;")
-            nconc (loop for src in (sort (directory (merge-pathnames dir "*.lisp")) #'string< :key #'namestring)
-                    collect (list (intern (string-upcase (pathname-name src)) :ccl)
-                                  (make-pathname :type nil :defaults src)
-                                  src)))))
-    (target-compile-modules (mapcar #'car *ccl-system*) (backend-name *target-backend*) nil)))
-
-#-CVM-TARGET
-(defun bc-compile-ccl (&key force (output "ccl:ccl-bc;"))
-  ;; * who does these first few binding for other platforms?  In fact, how does cross compilation happen for other
-  ;; platforms -- there are no calls to cross-load-level-0 etc.
-  (let* ((*features* *features*)
-         (*save-source-locations* NIL)
-         (*cerror-on-constant-redefinition* t)
-         (*package* (find-package :ccl))
-         (*save-doc-strings* t)
-         (*fasl-save-doc-strings* t)
-         ;; So that gensyms dumped in the .bc files get the same names in every build.
-         (*gensym-counter* 0)
-         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*))
-         (target (backend-name *cvm-backend*)))
-
-    (when force
-      (map nil #'delete-file (directory (make-pathname :name :wild
-                                                       :type (pathname-type *.fasl-pathname*)
-                                                       :directory '(:absolute :wild-inferiors)
-                                                       :host "ccl")
-                                        ;; works around a bug with .#xxx files
-                                        :follow-links nil)))
-
-    (with-global-optimization-settings ()
-      (with-cross-compilation-target (target)
-        (let ((*target-backend* *cvm-backend*))
-          (cvm-compile-level-0)))
-      (cross-compile-ccl target (not (null force))))
-
-    (when output
-      (collect-all-fasls output))))
-
-#-cvm-target ;; this is mostly for testing
-(defun bc-compile (lambda)
-  "Compile LAMBDA with the CVM backend, from a ccl running on a real machine."
-  (let ((target (backend-name *cvm-backend*)))
-    (with-cross-compilation-target (target)
-      (let ((*target-backend* *cvm-backend*))
-        (compile-named-function lambda :target target)))))
-
-
-;; Maybe don't even need them, just zip up the whole system, sources and all, and that's what you've got.
-;;  The only case would be if we want to check them into a version control system...  Figure that out later.
-(defun collect-all-fasls (&optional (dest "ccl:cvmsrcs;"))
-  (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
-    ;; Delete dest before get fasls so that don't try to copy the fasls from dest
-    (recursive-delete-directory dest :if-does-not-exist nil)
-    (copy-all-fasls "ccl:" dest)))
-
-(defun restore-all-fasls (&optional (src "ccl:cvmsrcs;"))
-  (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
-    (copy-all-fasls src "ccl:" :if-exists :supersede)))
-
-(defun copy-all-fasls (srcdir destdir &key (if-exists :error))
-  (let* ((fasls-path (full-pathname (merge-pathnames (merge-pathnames "**/*" srcdir) *.fasl-pathname*)))
-         (ndirs (1- (length (pathname-directory fasls-path))))
-         (seen-dirs ()))
-    (loop for file in (directory fasls-path :follow-links nil)
-      as subdirs = (nthcdr ndirs (pathname-directory file))
-      as destsubdir = (merge-pathnames (make-pathname :directory `(:relative ,@subdirs)) destdir)
-      do (unless (member subdirs seen-dirs :test 'equal)
-           (push subdirs seen-dirs)
-           (ensure-directories-exist destsubdir))
-      do (copy-file file (merge-pathnames destsubdir file) :if-exists if-exists))))
-
-(defun test-fn (lambda-expr &key (print t) &aux (sym (make-symbol "NEW-TEST-FN")))
-  (when (eq (car lambda-expr) 'defun)
-    (setq lambda-expr (cons 'lambda (cddr lambda-expr))))
-  (assert (lambda-expression-p lambda-expr))
-  (let* ((fn (with-cross-compilation-target (:darwincvm);;set up packages
-               (compile-named-function lambda-expr
-                                      :name sym
-                                      :target :darwincvm
-                                      :keep-lambda *save-definitions*
-                                      :keep-symbols *save-local-symbols*)))
-         (bclambda (lfun-bclambda fn)))
-    (if print
-      (pprint bclambda)
-      bclambda)))
-  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; Foreign records, deferred to runtime.
 ;;;;; The CVM target has no interface database, so it sets the ftd :defer-to-runtime attribute,

@@ -42,9 +42,7 @@
        vreg
        vinsn
        reg
-       subprims backend nx2 acode-rewrite
-       ;; The CVM backend is part of the compiler for every target, not just the CVM.
-       cvm-arch cvm-backend cvm2))
+       subprims backend nx2 acode-rewrite))
 
 
 (defparameter *ppc-compiler-modules*
@@ -82,6 +80,9 @@
     arm64-asm
     arm64-lap))
 
+(defparameter *cvm-compiler-modules*
+  '(cvm-arch cvm-backend cvm2))
+
 (defparameter *ppc32-compiler-backend-modules*
   '(ppc32-backend ppc32-vinsns))
 
@@ -114,7 +115,7 @@
 (defparameter *x8664-xload-modules* '(xx8664fasload xfasload heap-image ))
 (defparameter *arm-xload-modules* '(xarmfasload xfasload heap-image ))
 (defparameter *arm64-xload-modules* '(xarm64fasload xfasload heap-image))
-(defparameter *cvm-xload-modules* '())
+(defparameter *cvm-xload-modules* '(xcvmfasload))
 
 
 ;;; Not too OS-specific.
@@ -228,7 +229,8 @@
     (:arm (append *arm-compiler-modules*
                   *arm-compiler-backend-modules*))
     (:arm64 (append *arm64-compiler-modules*
-                    *arm64-compiler-backend-modules*))))
+                    *arm64-compiler-backend-modules*))
+    (:cvm *cvm-compiler-modules*)))
 
 (defparameter *other-lib-modules*
   '(streams pathnames backtrace
@@ -237,6 +239,7 @@
     dumplisp
     source-files
     swink
+    ;; The CVM file compiler, called by nfcomp for the CVM target.
     cvm-fcomp))
 
 (defun target-other-lib-modules (&optional (target

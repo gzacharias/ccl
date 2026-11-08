@@ -1414,6 +1414,15 @@ Keeps ns:ns-range / ns:ns-rect ordinals aligned with make-gcable-record."
               (parsed parsed)
               (t (parse-foreign-type type)))))))
 
+;; Support for defer-to-runtime FFI, only defined when CVM backend is loaded.
+(declaim (ftype function
+                %deferred-load-record
+                %deferred-foreign-size-form
+                %deferred-field-offset-form
+                %deferred-foreign-access-form
+                %deferred-foreign-array-access-form
+                %deferred-foreign-init-forms))
+
 (defun %foreign-type-or-record-size-form (type units &optional accessors)
   (when (getf (ftd-attributes *target-ftd*) :defer-to-runtime)
     (return-from %foreign-type-or-record-size-form

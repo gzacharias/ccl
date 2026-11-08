@@ -151,6 +151,7 @@
     (xx8664fasload    "ccl:xdump;xx8664-fasload"  ("ccl:xdump;xx8664-fasload.lisp"))
     (xarmfasload      "ccl:xdump;xarm-fasload"   ("ccl:xdump;xarmfasload.lisp"))
     (xarm64fasload    "ccl:xdump;xarm64-fasload" ("ccl:xdump;xarm64fasload.lisp"))
+    (xcvmfasload      "ccl:xdump;xcvmfasload"    ("ccl:xdump;xcvmfasload.lisp"))
     (heap-image       "ccl:xdump;heap-image"     ("ccl:xdump;heap-image.lisp"))
     (xsym             "ccl:xdump;xsym"           ("ccl:xdump;xsym.lisp"))
     (number-macros "ccl:bin;number-macros"    ("ccl:lib;number-macros.lisp"))

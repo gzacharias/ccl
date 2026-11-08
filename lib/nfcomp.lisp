@@ -1534,6 +1534,9 @@ Will differ from *compiling-file* during an INCLUDE")
 (defvar *fasdump-stream*)
 (defvar *fasdump-eref*)
 
+;; Defined in the CVM backend
+(declaim (ftype function fasl-dump-cvm-file))
+
 (defun fasl-dump-file (gnames goffsets forms hash filename)
   (when (eq *fasl-target* :darwincvm)
     (assert (null gnames))
