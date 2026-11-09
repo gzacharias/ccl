@@ -16,7 +16,7 @@ including supporting the IDE.
 
 The bc-compiler is implemented as a new backend to the compiler, stored in `compiler/CVM/`, and the `.bc` files are produced by a modified file compiler in `lib/cvm-fcomp.lisp`.
 
-When running in the ccl-vm host,  the CVM backend serves as the host backend.  When running in any other host, it is invokved as a cross-compiler as detailed below.
+When running in the ccl-vm host, the CVM backend serves as the host backend.  When running in any other host, it is invoked as a cross-compiler as detailed below.
 
 ## Interaction with upstream
 
@@ -28,25 +28,20 @@ Changes to core CCL that stand on their own (bug fixes and improvements that see
 
 ## Building and cross-compiling
 
-Note: So far bc-compiler has been tested with CCL running on Intel macOS and on x86-64 Linux.
-
 **1. Get the bc-compiler**
-```
+
+<pre>
+# check out the sources
 git clone https://github.com/gzacharias/ccl.git
 cd ccl
 git checkout bc-compiler
-# download ccl binary assets for the base version, which is ccl 1.14
-# for Intel Mac:
-curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/darwinx86.tar.gz
-tar -xzf darwinx86.tar.gz
-rm darwinx86.tar.gz
-alias ccl=./dx86cl64
-# or for x86-64 Linux:
-curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/linuxx86.tar.gz
-tar -xzf linuxx86.tar.gz
-rm linuxx86.tar.gz
-alias ccl=./lx86cl64
-```
+
+# Get the <a href="https://github.com/Clozure/ccl/releases/tag/v1.14">ccl 1.14</a> binary assets for your system. For example for Linux/x86, do:
+mytar=linuxx86
+curl -L -O https://github.com/Clozure/ccl/releases/download/v1.14/$mytar.tar.gz
+tar xf $mytar.tar.gz
+alias ccl=./lx86cl64  # name of your kernel
+</pre>
 
 **2. Rebuild CCL from this branch.** The branch adds new files to the build, so load the updated `compile-ccl`
 into the standard image when rebuilding for the very first time.  Two rebuilds are needed to complete the bootstrap.
@@ -54,9 +49,8 @@ into the standard image when rebuilding for the very first time.  Two rebuilds a
 ccl -n
 (let ((*warn-if-redefine-kernel* nil))
   (load "ccl:lib;compile-ccl.lisp"))
-;; First rebuild, expect warnings since it doesn't know about our changes,
-;; and rebuild kernel in case changed from release
-(rebuild-ccl :clean t :kernel t)
+;; First rebuild, expect warnings since it doesn't know about our changes
+(rebuild-ccl :clean t)
 (quit)
 
 ccl -n
@@ -79,12 +73,13 @@ This puts the .bc files in the directory specified by `:output` (default `"ccl:c
 
 ## Status
 
-* bc-compiler is is a fully functional ccl fork that passes all ccl-tests on MacOS arm64 and x8664 and Linux arm64 and x8664 (there is no reason to believe it wouldn't pass on other hosts, I just don't have the means to test them).
-* bc-compiler produces byte-identical bc bundles running in any of the 4 tested hosts.
-* Only the macOS target is supported (the target is called `:darwincvm`), because (at least) of issues with FFI constants.
-* bc-compiler running in ccl-vm can compile itself (see ccl-vm README)
-* bc-compiler running in ccl-vm can cross-compile itself for the darwinx8664 target (see ccl-vm README)
-* bc-compiler running in ccl-vm cannot compile stock ccl at this time. (See issue #2)
+* bc-compiler is a fully functional ccl fork that passes all ccl-tests on MacOS arm64 and x8664, and Linux arm64 and x8664 (there is no reason to believe it wouldn't pass on other hosts, I just don't have the means to test them)
+* bc-compiler produces byte-identical bc bundles running in any of the 4 tested hosts
+* Only the macOS target (`darwincvm` target) is supported ([Issue #9](https://github.com/gzacharias/ccl/issues/9))
+* bc-compiler running in ccl-vm can compile itself (see [ccl-vm README](https://github.com/gzacharias/ccl-vm#readme))
+* bc-compiler running in ccl-vm cannot compile stock ccl at this time ([Issue #2](https://github.com/gzacharias/ccl/issues/2))
+* bc-compiler running in ccl-vm can cross-compile itself for the `darwinx8664` target (see [ccl-vm README](https://github.com/gzacharias/ccl-vm#readme))
+
 
 
 ## License
