@@ -93,6 +93,14 @@
 (defun fasl-dump-cvm-file (toplevel-forms hash output-file)
   ;;(assert (equalp (pathname-type output-file) (pathname-type (bscompile-fasl))))
   (with-open-file (outf output-file :direction :output :if-exists :supersede)
+   (with-standard-io-syntax
+     ;; The file is read in the host's CCL-VM package, which stands for CCL, so always print relative to CCL.
+    (let ((*package* (find-package "CCL"))
+          ;; :readably is passed explicitly when needed, leaving it globally true would
+          ;; also affect any debugger entered from this code.
+          (*print-readably* nil)
+          ;; The VM reads .bc files with *read-eval* nil, so don't let readable printing fall back on #.
+          (*read-eval* nil))
     ;; Potentially might have separate slots for VM and CL versions of the objects, hence 2x
     (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (* 2 (hash-table-count hash)))
     (let* ((*ev2-fcomp-hash* hash)
@@ -132,7 +140,7 @@
                                           args))
                   :stream outf :pretty t :readably t :structure nil
                   :right-margin 150)
-        and do (terpri outf)))))
+        and do (terpri outf)))))))
 
 
 (defun ev2-fcomp-info (obj)
