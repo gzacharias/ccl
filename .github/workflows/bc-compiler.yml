@@ -1,0 +1,20 @@
+# On a push to bc-compiler: build it natively, compile the bc bundle, run ccl-tests, test the
+# bundle in the VM, and report whether the bundle matches the latest ccl-vm release's.  All of
+# that is ccl-vm's "Build bundle and test VM" workflow (gzacharias/ccl-vm vm-test.yml), run on
+# this commit with the scripts from ccl-vm master.
+name: bc-compiler
+
+on:
+  push:
+    branches: [bc-compiler]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: gzacharias/ccl-vm/.github/workflows/vm-test.yml@master
+    with:
+      ccl_ref: ${{ github.sha }}
+      ccl_vm_ref: master
