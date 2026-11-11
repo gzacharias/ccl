@@ -3415,14 +3415,9 @@
 		     (:socket
 		      #+linux-target nominal
 		      #-linux-target
-                      (rlet ((valptr :signed) (vallen :signed 4))
-                        (let* ((err (#_getsockopt fd #$SOL_SOCKET
-                                                  #+solaris-target #$SO_SNDBUF
-                                                  #-solaris-target #$SO_SNDLOWAT
-                                                  valptr vallen)))
-                          (if (and (eql 0 err) (eql 4 (pref vallen :signed)))
-                            (pref valptr :signed)
-                            nominal))))
+		      (int-getsockopt fd #$SOL_SOCKET
+				      #+solaris-target #$SO_SNDBUF
+				      #-solaris-target #$SO_SNDLOWAT))
 		     ((:character-special :tty)
 		      (#_fpathconf fd #$_PC_MAX_INPUT))
 		     (t nominal))))
