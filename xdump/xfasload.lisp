@@ -947,12 +947,12 @@
 
 
 (defun xload-save-htab (htab)
-  ;; The target rehashes every package table at boot before it looks up any symbols (see
-  ;; %TOPLEVEL-FUNCTION% in level-0/nfasload.lisp), so all a table needs is its symbols:
-  ;; save just those, without the empty slots and the symbols that aren't in the image.
+  ;; The target rehashes every package table at boot before it looks up any symbols, so
+  ;; don't need to preserve the layout, just save all the symbols.
   (let* ((htvec (car htab))
+         (len (length htvec))
          (symbols ()))
-    (dotimes (i (length htvec))
+    (dotimes (i len)
       (let* ((s (%svref htvec i))
              (addr (if s
                      (and (symbolp s) (xload-lookup-symbol s))
@@ -970,7 +970,11 @@
       (loop for addr in (nreverse symbols)
             for i from 0
             do (setf (xload-%svref xvec i) addr))
-      (xload-make-cons xvec (xload-make-cons (xload-integer count) (xload-integer count))))))
+      (xload-make-cons
+       xvec
+       (xload-make-cons
+        (xload-integer count)
+        (xload-integer count))))))
 
 (defun xload-finalize-packages ()
   (dolist (pair *xload-aliased-package-addresses*)

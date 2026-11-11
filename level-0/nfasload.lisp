@@ -1282,8 +1282,7 @@
       ;; Need to make %ALL-PACKAGES-LOCK% early, so that we can casually
       ;; do SET-PACKAGE in cold load functions.
       (setq %all-packages-lock% (make-read-write-lock))
-      ;; Rehash the package tables before anything looks up a symbol, in case they were
-      ;; created by cross compiling from a host with a different table layout.
+      ;; Rehash the package tables before anything looks up a symbol
       (dolist (p %all-packages%)
         (%resize-htab (pkg.itab p))
         (%resize-htab (pkg.etab p)))
