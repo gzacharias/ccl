@@ -1102,12 +1102,12 @@ satisfy the optional predicate PREDICATE."
                                (1 (makunbound sym) (load-os-constant sym))))
                            (values sym source))
                          (let* ((fv (%load-var sym nil)))
-                             (values
-                              (%foreign-access-form `(%reference-external-entry-point (load-time-value ,fv))
-                                                    (fv.type fv)
-                                                    0
-                                                    nil)
-                              source))))))))
+                           (values
+                            (%foreign-access-form `(%reference-external-entry-point (load-time-value ,fv))
+                                                  (fv.type fv)
+                                                  0
+                                                  nil)
+                            source))))))))
                 (string
                  (let* ((val 0)
                         (len (length sym)))

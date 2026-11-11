@@ -134,26 +134,23 @@ present and false otherwise. This variable shouldn't be set by user code.")
   (let* ((encoding (lookup-character-encoding *terminal-character-encoding-name*))
          (encoding-name (if encoding (character-encoding-name encoding))))
     #+windows-target (validate-standard-io-handles)
-    (setq *stdin*
-          (let* ((infd #-windows-target 0
-                       #+windows-target (%ptr-to-int
-                                         (#_GetStdHandle #$STD_INPUT_HANDLE))))
-            (make-fd-stream infd
-                            :basic t
-                            :sharing :lock
-                            :direction :input
-                            :interactive (or (not *batch-flag*)
-                                             (< (fd-lseek infd 0 #$SEEK_CUR)                                                      
-                                                0))
-                            :encoding encoding-name
-                            #+windows-target :line-termination #+windows-target :cp/m)))
-    (setq *stdout*
-          (make-fd-stream #-windows-target 1
-                          #+windows-target (%ptr-to-int
-                                            (#_GetStdHandle #$STD_OUTPUT_HANDLE))
-                          :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :msdos))
-    (setq *stderr*
-          (make-fd-stream #-windows-target 2
+    (setq *stdin* (let* ((infd #-windows-target 0
+                               #+windows-target (%ptr-to-int
+                                                 (#_GetStdHandle #$STD_INPUT_HANDLE))))
+                               (make-fd-stream infd
+                                  :basic t
+                                  :sharing :lock
+                                  :direction :input
+                                  :interactive (or (not *batch-flag*)
+                                                   (< (fd-lseek infd 0 #$SEEK_CUR)                                                      
+                                                      0))
+                                  :encoding encoding-name
+                                  #+windows-target :line-termination #+windows-target :cp/m)))
+    (setq *stdout* (make-fd-stream #-windows-target 1
+                                   #+windows-target (%ptr-to-int
+                                                     (#_GetStdHandle #$STD_OUTPUT_HANDLE))
+                                   :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :msdos))
+    (setq *stderr* (make-fd-stream #-windows-target 2
                                    #+windows-target (%ptr-to-int
                                                      (#_GetStdHandle #$STD_ERROR_HANDLE))
                                    :basic t :direction :output :sharing :lock :encoding encoding-name #+windows-target :line-termination #+windows-target :crlf))

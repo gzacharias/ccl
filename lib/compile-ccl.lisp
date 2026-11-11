@@ -38,11 +38,8 @@
     ))
 
 (defparameter *compiler-modules*
-  '(nx optimizers dll-node arch
-       vreg
-       vinsn
-       reg
-       subprims backend nx2 acode-rewrite))
+  '(nx optimizers dll-node arch vreg vinsn 
+    reg subprims  backend nx2 acode-rewrite))
 
 
 (defparameter *ppc-compiler-modules*
@@ -109,14 +106,12 @@
 (defparameter *arm64-compiler-backend-modules*
   '(arm64-backend arm64-vinsns arm642))
 
-
 (defparameter *ppc-xload-modules* '(xppcfasload xfasload heap-image ))
 (defparameter *x8632-xload-modules* '(xx8632fasload xfasload heap-image ))
 (defparameter *x8664-xload-modules* '(xx8664fasload xfasload heap-image ))
 (defparameter *arm-xload-modules* '(xarmfasload xfasload heap-image ))
 (defparameter *arm64-xload-modules* '(xarm64fasload xfasload heap-image))
 (defparameter *cvm-xload-modules* '(xcvmfasload))
-
 
 ;;; Not too OS-specific.
 (defparameter *ppc-xdev-modules* '(ppc-lapmacros ))
@@ -294,6 +289,11 @@
     prefixed-stream
     timestamped-stream
     ))
+
+
+
+
+
 
 
 (defun target-level-1-modules (&optional (target (backend-name *host-backend*)))

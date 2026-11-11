@@ -830,6 +830,7 @@ terminate the list"
                (ash (- subtype arm::min-cl-ivector-subtag) (- arm::ntagbits)))))
   )
 
+
 ;;; %make-displaced-array assumes the following
 
 (eval-when (:compile-toplevel)
