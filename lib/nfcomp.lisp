@@ -1367,6 +1367,7 @@ Will differ from *compiling-file* during an INCLUDE")
              (#.target::tag-function (fasl-scan-clfun exp))
              #+cvm-target
              (#.target::subtag-function (fasl-scan-clfun exp))
+             (#.target::subtag-xfunction (fasl-scan-xfunction exp))
              (t (fasl-scan-gvector exp)))))))))
               
 
@@ -1418,10 +1419,29 @@ Will differ from *compiling-file* during an INCLUDE")
       (declare (fixnum i))
       (fasl-scan-form (%svref fv i)))))
 
+;;; What gets dumped for a cvm function is its bclambda, so scan only the bclambda's
+;;; immediates.  The function's slots (name, bits, keyword vector) are derived from the
+;;; bclambda; scanning them too counted the name twice and gave it a fasl table entry,
+;;; which bc-compile-ccl's (cross-compiled) .bc files don't have.
 #+cvm-target
 (defun fasl-scan-clfun (f)
-  (fasl-scan-gvector f)
+  (fasl-scan-ref f)
   (map-bclambda-immediates f #'fasl-scan-form))
+
+;;; When cross-compiling for cvm, a function is an xfunction holding its bclambda (see
+;;; make-bclambda-lfun).  As in FASL-SCAN-CLFUN in the VM, scan only the bclambda's
+;;; immediates: the rest of it is code, which the cvm dumper just prints out.  Scanning the
+;;; code too gave conses and strings the compiler happened to share (e.g. the
+;;; ($bc-this-function) of self-calls) fasl table entries, which the .bc files compiled in
+;;; the VM don't have.
+(declaim (ftype function map-bclambda-immediates)) ; in lib/cvm-fcomp.lisp, or the VM's host
+
+(defun fasl-scan-xfunction (xfn)
+  (if (eq *fasl-target* :darwincvm)
+    (progn
+      (fasl-scan-ref xfn)
+      (map-bclambda-immediates xfn #'fasl-scan-form))
+    (fasl-scan-gvector xfn)))
 
 (defun funcall-lfun-p (form)
   (and (listp form)

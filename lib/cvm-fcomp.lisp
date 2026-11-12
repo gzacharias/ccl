@@ -13,6 +13,18 @@
 (defun lfun-bclambda (xfn)
   (uvref (require-type xfn 'xfunction) 0))
 
+;; Calls FUNCTION on each quoted constant in XFN's bclambda.
+#-cvm-target
+(defun map-bclambda-immediates (xfn function)
+  (labels ((scan (expr)
+             (when (consp expr)
+               (if (eq (car expr) '$bc-quote)
+                 (progn
+                   (assert (null (cddr expr)))
+                   (funcall function (cadr expr)))
+                 (mapc #'scan expr)))))
+    (scan (lfun-bclambda xfn))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; Foreign records, deferred to runtime.
 ;;;;; The CVM target has no interface database, so it sets the ftd :defer-to-runtime attribute,
@@ -101,46 +113,48 @@
           (*print-readably* nil)
           ;; The VM reads .bc files with *read-eval* nil, so don't let readable printing fall back on #.
           (*read-eval* nil))
-    ;; Potentially might have separate slots for VM and CL versions of the objects, hence 2x
-    (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (* 2 (hash-table-count hash)))
     (let* ((*ev2-fcomp-hash* hash)
            (*ev2-fcomp-eref* -1)
-           (*ev2-bcquote* nil))
-      (loop for form in toplevel-forms as (op . args) = form
-        as bs-opcode = (cond ((eq op $fasl-platform) nil)
-                             ((eq op $fasl-src) nil #+NOT-YET '$fasl-record-source)
-                             ((eq op $fasl-toplevel-location) 
-                              (check-type (car args) (or source-note null))
-                              nil #+NOT-YET '$fasl-toplevel-location nil)
-                             ((eq op $fasl-lfuncall)
-                              (check-type (car args) (or xfunction function))
-                              (let ((pkg (set-package-call-p (car args))))
-                                (if pkg
-                                  (progn
-                                    (setq args (list pkg))
-                                    '$fasl-set-package)
-                                  `$fasl-funcall)))
-                             ((eq op $fasl-defun)
-                              (check-type (car args) (or xfunction function))
-                              '$fasl-defun)
-                             ((eq op $fasl-defvar)
-                              '$fasl-defvar)
-                             ((eq op $fasl-defvar-init) '$fasl-defvar-init)
-                             ((eq op $fasl-defparameter) '$fasl-defparameter)
-                             ((eq op $fasl-defconstant) '$fasl-defconstant)
-                             ;; args = fn, doc : "doc" is either a string or a list of the form :
-                             ;; (doc-string-or-nil . (body-pos-or-nil . arglist-or-nil))
-                             ((eq op $fasl-macro) '$fasl-defmacro)
-                             (t (error "unsupported toplevel form ~s" form)))
-        when bs-opcode
-        ;; Ugh, wait, if all of them will be $BC-QUOTE, why do we bother???
-        do (write (cons bs-opcode (mapcar #'(lambda (arg)
-                                              (let ((*ev2-bcquote* t))
-                                                (ev2-maker-form arg)))
-                                          args))
-                  :stream outf :pretty t :readably t :structure nil
-                  :right-margin 150)
-        and do (terpri outf)))))))
+           (*ev2-bcquote* nil)
+           (maker-forms
+            (loop for form in toplevel-forms as (op . args) = form
+              as bs-opcode = (cond ((eq op $fasl-platform) nil)
+                                   ((eq op $fasl-src) nil #+NOT-YET '$fasl-record-source)
+                                   ((eq op $fasl-toplevel-location) 
+                                    (check-type (car args) (or source-note null))
+                                    nil #+NOT-YET '$fasl-toplevel-location nil)
+                                   ((eq op $fasl-lfuncall)
+                                    (check-type (car args) (or xfunction function))
+                                    (let ((pkg (set-package-call-p (car args))))
+                                      (if pkg
+                                        (progn
+                                          (setq args (list pkg))
+                                          '$fasl-set-package)
+                                        `$fasl-funcall)))
+                                   ((eq op $fasl-defun)
+                                    (check-type (car args) (or xfunction function))
+                                    '$fasl-defun)
+                                   ((eq op $fasl-defvar)
+                                    '$fasl-defvar)
+                                   ((eq op $fasl-defvar-init) '$fasl-defvar-init)
+                                   ((eq op $fasl-defparameter) '$fasl-defparameter)
+                                   ((eq op $fasl-defconstant) '$fasl-defconstant)
+                                   ;; args = fn, doc : "doc" is either a string or a list of the form :
+                                   ;; (doc-string-or-nil . (body-pos-or-nil . arglist-or-nil))
+                                   ((eq op $fasl-macro) '$fasl-defmacro)
+                                   (t (error "unsupported toplevel form ~s" form)))
+              when bs-opcode
+              ;; Ugh, wait, if all of them will be $BC-QUOTE, why do we bother???
+              collect (cons bs-opcode (mapcar #'(lambda (arg)
+                                                  (let ((*ev2-bcquote* t))
+                                                    (ev2-maker-form arg)))
+                                              args)))))
+      ;; The table size is the number of slots the maker forms actually store into, so it's
+      ;; known only once they've all been made.
+      (format outf "(cl:in-package :ccl-vm)~%($FASL-INIT ~d.)~2%" (1+ *ev2-fcomp-eref*))
+      (dolist (maker-form maker-forms)
+        (write maker-form :stream outf :pretty t :readably t :structure nil :right-margin 150)
+        (terpri outf)))))))
 
 
 (defun ev2-fcomp-info (obj)
@@ -163,9 +177,9 @@
   (let* ((info (ev2-fcomp-info obj)))
     (cond ((fixnump info) `($fs-ref ,info))
           ((eq info t)
-           (let ((store-index (incf *ev2-fcomp-eref*)))
-             (when (typep obj '(or (signed-byte 60) character boolean immediate))  ;; don't store immediates
-               (setq store-index nil))
+           ;; Allocate a slot only for objects that are actually stored, so the slot numbers
+           ;; don't depend on how many unstored objects the scan saw more than once.
+           (let ((store-index (and (ev2-stored-p obj) (incf *ev2-fcomp-eref*))))
              (setf (ev2-fcomp-info obj) store-index)
              (ev2-maker-dispatch obj store-index)))
           ((null info)
@@ -182,6 +196,20 @@
                (if compiled-initform
                  `(prog1 ,maker ,(ev2-maker-form compiled-initform))
                  maker)))))))
+
+;; Whether an object referenced more than once gets a slot in the fasl table.
+(defun ev2-stored-p (obj)
+  (cond ((typep obj '(or (signed-byte 60) character boolean immediate))  ;; don't store immediates
+         nil)
+        ((and (symbolp obj) (not *ev2-bcquote*))
+         ;; Don't bother storing interned symbols, see ev2-symbol-maker.  Only the bc operators
+         ;; should occur more than once in the code.
+         ;; if change this, also change make-bclambda-lfun
+         (unless (or (eq obj 'bclambda) (string= "$BC-" (string obj) :end2 4))
+           (format *trace-output* "~&NOT storing ~s" obj)
+           (break "How did this find its way here?"))
+         nil)
+        (t t)))
 
 (defun ev2-maker-dispatch (obj store-index)
   (cond ((typep obj '(or fixnum single-float standard-char boolean)) (ev2-maybe-store obj store-index))
@@ -254,12 +282,7 @@
              ;; Don't bother storing interned symbols
              (assert (or (eq (symbol-package sym) (symbol-package '$bc-quote))
                          (eq (symbol-package sym) *keyword-package*)))
-             (when store-index
-               ;; if change this, also change make-bclambda-lfun
-               (unless (or (eq sym 'bclambda) (string= "$BC-" (string sym) :end2 4))
-                 (format *trace-output* "~&NOT storing ~s" sym)
-                 (break "How did this find its way here?"))
-               (setf (ev2-fcomp-info sym) nil))
+             (assert (null store-index)) ;; see ev2-stored-p
              (if (keywordp sym) sym `(quote ,sym)))))))
 
 
