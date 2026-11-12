@@ -658,7 +658,12 @@ is why make is the only one worth pre-checking here."
 
 (defun rebuild-ccl (&key update full clean kernel force (reload #+cvm-target nil #-cvm-target t) exit
                          reload-arguments verbose optional-features
-                         (save-source-locations *ccl-save-source-locations*)
+                         ;; The cvm fasl dumper doesn't write source locations, and recording them
+                         ;; changes what gets dumped (toplevel forms are split at each source location,
+                         ;; and the source notes are scanned into the fasl table), so .bc files built
+                         ;; with them would differ from bc-compile-ccl's, which cross-compiles and so
+                         ;; never records source locations (see compile-file).
+                         (save-source-locations #+cvm-target nil #-cvm-target *ccl-save-source-locations*)
                          (allow-constant-redefinition nil allow-constant-redefinition-p))
   (let* ((*build-time-optional-features* (intersection *known-optional-features* optional-features))
          (*features* (append *build-time-optional-features* *features*))
