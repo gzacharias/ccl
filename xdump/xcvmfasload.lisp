@@ -27,18 +27,22 @@
   (declare (ignore force))
   (cvm-compile-level-0))
 
-;; The counterpart of writing the heap image: collect the .bc files into a directory
-(defun collect-all-fasls (&optional (dest "ccl:ccl-bc;"))
+(defun collect-all-fasls (dest)
+  (unless (directory-pathname-p dest)
+    (error "~s is not a directory pathname" dest))
   (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
     ;; Delete dest before get fasls so that don't try to copy the fasls from dest
     (recursive-delete-directory dest :if-does-not-exist nil)
     (copy-all-fasls "ccl:" dest)))
 
-(defun restore-all-fasls (&optional (src "ccl:ccl-bc;"))
+(defun restore-all-fasls (src)
   (let ((*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
     (copy-all-fasls src "ccl:" :if-exists :supersede)))
 
 (defun copy-all-fasls (srcdir destdir &key (if-exists :error))
+  (dolist (dir (list srcdir destdir))
+    (unless (directory-pathname-p dir)
+      (error "~s is not a directory pathname" dir)))
   (let* ((fasls-path (full-pathname (merge-pathnames (merge-pathnames "**/*" srcdir) *.fasl-pathname*)))
          (ndirs (1- (length (pathname-directory fasls-path))))
          (seen-dirs ()))
