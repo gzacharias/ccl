@@ -1555,13 +1555,18 @@ itself, by setting the status and exit-code fields.")
     (flet ((unsupported (test key val) (when test (error "Unsupported argument ~s ~s" key val))))
       (unsupported (not wait) :wait wait)
       (unsupported input :input input)
-      (unsupported env :env env)
       (unsupported (external-process-status-hook proc) :status-hook (external-process-status-hook proc))
       (unsupported (not (member error '(:output nil))) :error error)
       (unsupported (not (or (member output '(nil t :stream)) (streamp output))) :output output))
 
     (multiple-value-bind (exit-code text)
-        (cvm-run-program (external-process-args proc) (eq error :output) (not (null output)))
+        (cvm-run-program (if env
+                           ;; env(1) adds to the inherited environment, as setenv in the child does natively.
+                           `("/usr/bin/env"
+                             ,@(mapcar (lambda (pair) (concatenate 'string (string (car pair)) "=" (cdr pair))) env)
+                             ,@(external-process-args proc))
+                           (external-process-args proc))
+                         (eq error :output) (not (null output)))
       ;; If exit-code is nil, the program couldn't be run and text is the host's error message.
       (cond ((null exit-code)
              (setf (external-process-%status proc) :error
