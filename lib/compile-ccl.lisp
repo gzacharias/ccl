@@ -544,10 +544,11 @@
     (:androidarm "aarmcl")
     (:darwinarm64 "darm64cl")
     (:linuxarm64 "arm64cl")
-    (:darwincvm "dcvmsrcs")))
+    (:darwincvm "ccl-bc"))) ;; will need to change once support non-darwin
 
 (defun standard-image-name (&optional (target (backend-name *host-backend*)))
-  (concatenate 'string (pathname-name (standard-kernel-name target)) ".image"))
+  (concatenate 'string (pathname-name (standard-kernel-name target))
+               (if (eq target :darwincvm) ".tar.gz" ".image")))
 
 (defun kernel-build-directory (&optional (target (backend-name *host-backend*)))
   (ecase target
@@ -656,7 +657,7 @@ is why make is the only one worth pre-checking here."
           (lisp-implementation-version))
   (format stream "~&Path to source code: ~s" (truename "ccl:")))
 
-(defun rebuild-ccl (&key update full clean kernel force (reload #+cvm-target nil #-cvm-target t) exit
+(defun rebuild-ccl (&key update full clean kernel force (reload t) exit
                          reload-arguments verbose optional-features
                          ;; The cvm fasl dumper doesn't write source locations, and recording them
                          ;; changes what gets dumped (toplevel forms are split at each source location,
@@ -744,6 +745,9 @@ the lisp and run REBUILD-CCL again.")
                                 "Developer tools may not be installed correctly.")
                                (get-output-stream-string s))))))))
              (when reload
+               #+cvm-target
+               (write-cvm-bundle (if (eq reload t) (standard-image-name) reload))
+               #-cvm-target
                (let* ((old-write-date
                        (or (ignore-errors (file-write-date (standard-image-name)))
                            0)))

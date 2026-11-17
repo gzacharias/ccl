@@ -26,8 +26,8 @@
 
 (load-cvm-backend)
 
-(defun bc-compile-ccl (&key force (output "ccl:ccl-bc;"))
-  "Compile the CCL sources into a bytecode bundle for the VM, in OUTPUT."
+(defun bc-compile-ccl (&key force (output t))
+  "Compile the CCL sources into a bytecode bundle for the VM, in OUTPUT (T for the standard location)."
   (let* ((*features* *features*)
          (*save-source-locations* NIL)
          (*cerror-on-constant-redefinition* t)
@@ -60,7 +60,7 @@
           (target-compile-modules *cvm-xload-modules* target (not (null force))))))
 
     (when output
-      (collect-all-fasls output))))
+      (write-cvm-bundle (if (eq output t) (merge-pathnames (standard-image-name target) "ccl:") output)))))
 
 
 ;; this is mostly for testing
