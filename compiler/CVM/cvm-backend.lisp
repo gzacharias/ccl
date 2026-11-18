@@ -192,6 +192,7 @@
   '((:int . :signed-fullword)
     (:signed . :signed-fullword)
     (:unsigned . :unsigned-fullword)
+    (:size_t . :unsigned-doubleword)
     (:ssize_t . :signed-doubleword)
     (:off_t . :signed-doubleword)
     (:mode_t . :unsigned-halfword)
