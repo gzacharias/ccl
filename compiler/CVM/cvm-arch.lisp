@@ -174,7 +174,6 @@
                   tcr.interrupt-pending 
                   tcr.log2-allocation-quantum 
                   tcr.native-thread-id 
-                  tcr.osid 
                   tcr.reset-completion 
                   tcr.suspend-count 
                   tcr.ts-area 
@@ -271,6 +270,11 @@
   rwlock.writer-signal
   rwlock.malloced-ptr-NOT-REFERENCED)
 (defconstant rwlock.size 64)
+
+;; The VM's one tcr.  OSID 0: no OS thread.
+(ccl::defenum (:start 0 :step 8)
+  tcr.osid)
+(defconstant tcr.size 8)
 
 (defconstant value-cell.value-cell 0)
 

@@ -467,7 +467,7 @@
 
 
 
-#+(and linux-target (not cvm-target))
+#+linux-target
 (defun set-os-thread-name (lisp-thread name)
   "Set the OS-visible name of the thread with pthread_setname_np."
   (let ((natural (lisp-thread-os-thread lisp-thread)))
