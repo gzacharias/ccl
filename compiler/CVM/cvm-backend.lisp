@@ -195,7 +195,8 @@
     (:ssize_t . :signed-doubleword)
     (:off_t . :signed-doubleword)
     (:mode_t . :unsigned-halfword)
-    (:socklen_t . :unsigned-fullword)))
+    (:socklen_t . :unsigned-fullword)
+    (:pthread_t . :unsigned-doubleword)))
 
 ;; x8664::expand-ff-call
 (defun cvm-expand-ff-call (callform args)
