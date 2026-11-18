@@ -168,16 +168,10 @@
 ;; (pref ptr :link_map.l_addr) is an integer on Linux and a Pointer on FreeBSD
 ;; This macro returns a pointer on all platforms
 (defmacro link_map.l_addr (ptr)
-  (let* ((record (%find-foreign-record :link_map))
-         (field (%find-foreign-record-type-field record :l_addr))
-         (offset (/ (foreign-record-field-offset field) 8)))
-    `(%get-ptr ,ptr ,offset)))
+  `(%get-ptr ,ptr (get-field-offset :link_map.l_addr)))
 
 (defmacro link_map.l_ld (ptr)
-  (let* ((record (%find-foreign-record :link_map))
-         (field (%find-foreign-record-type-field record :l_ld))
-         (offset (/ (foreign-record-field-offset field) 8)))
-    `(%get-ptr ,ptr ,offset)))
+  `(%get-ptr ,ptr (get-field-offset :link_map.l_ld)))
 
 (defun soname-ptr-from-link-map (map)
   (let* ((path (pref map :link_map.l_name)))
