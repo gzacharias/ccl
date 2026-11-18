@@ -203,16 +203,17 @@
               ;; dynamic string table is expressed as an offset relative
               ;; to link_map.l_addr as well.
               (loop
-                (case #+32-bit-target (pref dynamic-entries :<E>lf32_<D>yn.d_tag)
-                      #+64-bit-target (pref dynamic-entries :<E>lf64_<D>yn.d_tag)
-                      (#. #$DT_NULL (return))
-                      (#. #$DT_SONAME
+                (let ((tag #+32-bit-target (pref dynamic-entries :<E>lf32_<D>yn.d_tag)
+                           #+64-bit-target (pref dynamic-entries :<E>lf64_<D>yn.d_tag)))
+                  (cond
+                      ((eql tag #$DT_NULL) (return))
+                      ((eql tag #$DT_SONAME)
                           (setq soname-offset
                                 #+32-bit-target (pref dynamic-entries
                                                       :<E>lf32_<D>yn.d_un.d_val)
                                 #+64-bit-target (pref dynamic-entries
                                                       :<E>lf64_<D>yn.d_un.d_val)))
-                      (#. #$DT_STRTAB
+                      ((eql tag #$DT_STRTAB)
                           ;; On some architectures, glibc mangles the DT_STRTAB
                           ;; entry into an absolute address, and there appears
                           ;; to be no portable way to detect when that happens.
@@ -230,7 +231,7 @@
                                           #-(or freebsd-target solaris-target android-target)
                                           (if (> disp (%ptr-to-int addr))
                                               (%int-to-ptr disp)
-                                              (%inc-ptr addr disp))))))
+                                              (%inc-ptr addr disp)))))))
                 (%setf-macptr dynamic-entries
                               (%inc-ptr dynamic-entries
                                         #+32-bit-target

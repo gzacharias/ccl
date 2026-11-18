@@ -11,6 +11,8 @@
 
 (export 'bc-compile-ccl)
 
+(defvar *known-cvm-backends*)
+
 (defun load-cvm-backend (&optional force-compile)
   "Load the CVM backend, compiling its fasls first if they are missing or out of date."
   (with-compilation-unit ()
