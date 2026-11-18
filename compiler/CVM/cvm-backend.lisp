@@ -209,6 +209,8 @@
   (flet ((std (type-spec)
            ;; Don't want to call foreign-type-to-representation-type because that gets into parsing and databases and stuff...
            ; (foreign-type-to-representation-type type-spec)
+           (when (and type-spec (symbolp type-spec) (not (keywordp type-spec)))
+             (setq type-spec (intern (symbol-name type-spec) :keyword)))
            (if (or (member type-spec *foreign-representation-type-keywords* :test #'eq)
                    (typep type-spec 'unsigned-byte))
              type-spec
