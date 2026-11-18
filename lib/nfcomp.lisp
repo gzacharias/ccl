@@ -1437,7 +1437,7 @@ Will differ from *compiling-file* during an INCLUDE")
 (declaim (ftype function map-bclambda-immediates)) ; in lib/cvm-fcomp.lisp, or the VM's host
 
 (defun fasl-scan-xfunction (xfn)
-  (if (eq *fasl-target* :darwincvm)
+  (if (memq *fasl-target* '(:darwincvm :linuxcvm))
     (progn
       (fasl-scan-ref xfn)
       (map-bclambda-immediates xfn #'fasl-scan-form))
@@ -1558,7 +1558,7 @@ Will differ from *compiling-file* during an INCLUDE")
 (declaim (ftype function fasl-dump-cvm-file))
 
 (defun fasl-dump-file (gnames goffsets forms hash filename)
-  (when (eq *fasl-target* :darwincvm)
+  (when (memq *fasl-target* '(:darwincvm :linuxcvm))
     (assert (null gnames))
     (assert (null goffsets))
     (return-from fasl-dump-file

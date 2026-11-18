@@ -196,7 +196,7 @@
                         (:darwinarm 'ffi-darwinarm)
                         (:darwinarm64 'ffi-darwinarm64)
                         (:linuxarm64 'ffi-linuxarm64)
-                        (:darwincvm nil))))
+                        ((:darwincvm :linuxcvm) nil))))
             ;; Both arm64 targets delegate to the shared AAPCS64
             ;; implementation in ffi-arm64; build it alongside the OS
             ;; module.
@@ -544,11 +544,12 @@
     (:androidarm "aarmcl")
     (:darwinarm64 "darm64cl")
     (:linuxarm64 "arm64cl")
-    (:darwincvm "ccl-bc"))) ;; will need to change once support non-darwin
+    (:darwincvm "ccl-bc")
+    (:linuxcvm "lccl-bc")))
 
 (defun standard-image-name (&optional (target (backend-name *host-backend*)))
   (concatenate 'string (pathname-name (standard-kernel-name target))
-               (if (eq target :darwincvm) ".tar.gz" ".image")))
+               (if (memq target '(:darwincvm :linuxcvm)) ".tar.gz" ".image")))
 
 (defun kernel-build-directory (&optional (target (backend-name *host-backend*)))
   (ecase target

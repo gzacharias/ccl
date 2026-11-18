@@ -44,8 +44,7 @@
               (push ,var *known-backends*))))
      ',var))
 
-#+(or darwincvm-target (not cvm-target))
-(def-known-backend *darwincvm-backend*
+(defun make-cvm-backend (name os-features platform-os)
   (make-backend :lookup-opcode 'unknown ;;#'arm::lookup-arm-instruction
                 :lookup-macro 'unknown ;; #'false
                 :lap-opcodes #() ;; not referrenced - can't use 'unknown because of type decl on slot
@@ -56,20 +55,39 @@
                 :p2-template-hash-name 'unknown ;;'*arm-vinsn-templates*
                 :p2-compile 'cvm2-compile
                 :target-specific-features
-                '(:cvm :cvm-target :darwin-target :darwincvm-target
-                       ;; Who wants to know about endianness?
-                       :64-bit-target :little-endian-target
-                       :unix :darwin)
+                `(:cvm :cvm-target ,@os-features)
                 :target-fasl-pathname (make-pathname :type "bc")
                 :target-platform (logior platform-word-size-64
                                          platform-cpu-cvm
-                                         platform-os-darwin)
-                :target-os :darwincvm
-                :name :darwincvm
+                                         platform-os)
+                :target-os name
+                :name name
                 :target-arch-name :cvm
                 :target-arch cvm::*cvm-target-arch*))
 
-(defparameter *cvm-backend* (car *known-cvm-backends*))
+#+(or darwincvm-target (not cvm-target))
+(def-known-backend *darwincvm-backend*
+  (make-cvm-backend :darwincvm
+                    '(:darwin-target :darwincvm-target
+                      ;; Who wants to know about endianness?
+                      :64-bit-target :little-endian-target
+                      :unix :darwin)
+                    platform-os-darwin))
+
+#+(or linuxcvm-target (not cvm-target))
+(def-known-backend *linuxcvm-backend*
+  (make-cvm-backend :linuxcvm
+                    '(:linux-target :linuxcvm-target :64-bit-target :little-endian-target :unix :linux)
+                    platform-os-linux))
+
+;; The VM target for the OS we're running on.
+(defparameter *cvm-backend*
+  (find #+linux-target :linuxcvm #-linux-target :darwincvm *known-cvm-backends* :key #'backend-name))
+
+(defun cvm-ffi-package-name (backend)
+  (ecase (backend-name backend)
+    (:darwincvm "CVMDARWIN-FFI")
+    (:linuxcvm "CVMLINUX-FFI")))
 
 #+cvm-target
 (setq *host-backend* *cvm-backend* *target-backend* *host-backend*)
@@ -77,9 +95,9 @@
 
 (defvar *cvm-ftd*)
 
-(defun make-cvm-ftd ()
+(defun make-cvm-ftd (&optional (backend *cvm-backend*))
   (let ((ftd (make-ftd :interface-db-directory 'unknown  ;;"ccl:darwin-cvm-headers;"
-                       :interface-package-name "CVMDARWIN-FFI"
+                       :interface-package-name (cvm-ffi-package-name backend)
                        :attributes (list :bits-per-word 64
                                          :signed-char t
                                          :struct-by-value t
@@ -107,10 +125,10 @@
 ;; In another host, LOAD-CVM-BACKEND (tools/xdarwincvm.lisp) loads this file and then calls SETUP-CVM-FTD.
 ;; (If this file is reloaded into a running lisp, def-known-backend carries the old ftd over.)
 #-cvm-target
-(defun setup-cvm-ftd ()
-  (let ((ftd (make-cvm-ftd)))
+(defun setup-cvm-ftd (backend)
+  (let ((ftd (make-cvm-ftd backend)))
     (install-standard-foreign-types ftd)
-    (setf (backend-target-foreign-type-data *cvm-backend*) ftd)))
+    (setf (backend-target-foreign-type-data backend) ftd)))
 
 ;; l1-aprims does this:
 ;(defpackage #.(ftd-interface-package-name (backend-target-foreign-type-data *target-backend*))
@@ -120,8 +138,10 @@
 ; which means at load time, it defines the package that was host when it was compiled.
 
 (eval-when (:execute :load-toplevel) ;; doing this at compile time interferes with cross compilation package manipulations
-  (or (find-package "CVMDARWIN-FFI")
-      (make-package "CVMDARWIN-FFI" :use "COMMON-LISP")))
+  (dolist (backend *known-cvm-backends*)
+    (let ((name (cvm-ffi-package-name backend)))
+      (or (find-package name)
+          (make-package name :use "COMMON-LISP")))))
 
 ;; To be defined in the host.  Check this once in a while, see https://github.com/gzacharias/ccl/issues/3
 (declaim (ftype function

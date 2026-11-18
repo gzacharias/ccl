@@ -18,17 +18,19 @@
       (update-modules module force-compile)
       (require-modules module))
     ;; Needs foreign-types, which every host has.
-    (unless (backend-target-foreign-type-data (find-backend :darwincvm))
-      (setup-cvm-ftd))
+    (dolist (backend *known-cvm-backends*)
+      (unless (backend-target-foreign-type-data backend)
+        (setup-cvm-ftd backend)))
     (dolist (module *cvm-xload-modules*)
       (update-modules module force-compile)
       (require-modules module))))
 
 (load-cvm-backend)
 
-(defun bc-compile-ccl (&key force (output t))
-  "Compile the CCL sources into a bytecode bundle for the VM, in OUTPUT (T for the standard location)."
-  (let* ((*features* *features*)
+(defun bc-compile-ccl (&key force (output t) (target (backend-name *cvm-backend*)))
+  "Compile the CCL sources into a bytecode bundle for the VM running on TARGET's OS, in OUTPUT (T for the standard location)."
+  (let* ((*cvm-backend* (find-backend target))
+         (*features* *features*)
          (*save-source-locations* NIL)
          (*cerror-on-constant-redefinition* t)
          (*package* (find-package :ccl))
@@ -36,8 +38,8 @@
          (*fasl-save-doc-strings* t)
          ;; So that gensyms dumped in the .bc files get the same names in every build.
          (*gensym-counter* 0)
-         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*))
-         (target (backend-name *cvm-backend*)))
+         (*.fasl-pathname* (backend-target-fasl-pathname *cvm-backend*)))
+    (assert (memq *cvm-backend* *known-cvm-backends*))
 
     (when force
       (map nil #'delete-file (directory (make-pathname :name :wild
@@ -75,10 +77,11 @@
   (when (eq (car lambda-expr) 'defun)
     (setq lambda-expr (cons 'lambda (cddr lambda-expr))))
   (assert (lambda-expression-p lambda-expr))
-  (let* ((fn (with-cross-compilation-target (:darwincvm);;set up packages
+  (let* ((target (backend-name *cvm-backend*))
+         (fn (with-cross-compilation-target (target);;set up packages
                (compile-named-function lambda-expr
                                       :name sym
-                                      :target :darwincvm
+                                      :target target
                                       :keep-lambda *save-definitions*
                                       :keep-symbols *save-local-symbols*)))
          (bclambda (lfun-bclambda fn)))
