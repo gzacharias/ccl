@@ -544,7 +544,7 @@
     (:androidarm "aarmcl")
     (:darwinarm64 "darm64cl")
     (:linuxarm64 "arm64cl")
-    (:darwincvm "ccl-bc")
+    (:darwincvm "dccl-bc")
     (:linuxcvm "lccl-bc")))
 
 (defun standard-image-name (&optional (target (backend-name *host-backend*)))

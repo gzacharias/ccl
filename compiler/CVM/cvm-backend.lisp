@@ -44,7 +44,7 @@
               (push ,var *known-backends*))))
      ',var))
 
-(defun make-cvm-backend (name os-features platform-os)
+(defun make-cvm-backend (name os-features platform-os fasl-type)
   (make-backend :lookup-opcode 'unknown ;;#'arm::lookup-arm-instruction
                 :lookup-macro 'unknown ;; #'false
                 :lap-opcodes #() ;; not referrenced - can't use 'unknown because of type decl on slot
@@ -56,7 +56,7 @@
                 :p2-compile 'cvm2-compile
                 :target-specific-features
                 `(:cvm :cvm-target ,@os-features)
-                :target-fasl-pathname (make-pathname :type "bc")
+                :target-fasl-pathname (make-pathname :type fasl-type)
                 :target-platform (logior platform-word-size-64
                                          platform-cpu-cvm
                                          platform-os)
@@ -72,13 +72,15 @@
                       ;; Who wants to know about endianness?
                       :64-bit-target :little-endian-target
                       :unix :darwin)
-                    platform-os-darwin))
+                    platform-os-darwin
+                    "dbc"))
 
 #+(or linuxcvm-target (not cvm-target))
 (def-known-backend *linuxcvm-backend*
   (make-cvm-backend :linuxcvm
                     '(:linux-target :linuxcvm-target :64-bit-target :little-endian-target :unix :linux)
-                    platform-os-linux))
+                    platform-os-linux
+                    "lbc"))
 
 ;; The VM target for the OS we're running on.
 (defparameter *cvm-backend*

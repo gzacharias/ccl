@@ -3,7 +3,7 @@
 ;;;
 ;;; Loads the darwincvm backend into a host that isn't the VM, then
 ;;;
-;;;     (ccl:bc-compile-ccl :force t :output "ccl:ccl-bc;")
+;;;     (ccl:bc-compile-ccl :force t)
 ;;;
 ;;; compiles the CCL sources into a bytecode bundle for the VM.
 
