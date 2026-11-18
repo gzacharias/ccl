@@ -181,7 +181,7 @@
 
 ;; Lap functions in ccl-vm (runtime.lisp); their lisp definitions are #-cvm-target.  Without
 ;; this, bc-compile-ccl warns about them on hosts that don't have them natively (e.g. a linux ccl).
-(declaim (ftype function soname-from-mach-header))
+(declaim (ftype function soname-from-mach-header set-os-thread-name))
 
 ;; This is never actually called (cvm2 turns calls to it into $bc-kernel-call), but
 ;; cvm-expand-ff-call generates the calls, so it's needed to avoid warnings.

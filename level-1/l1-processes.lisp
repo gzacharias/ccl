@@ -191,7 +191,7 @@
         (setq lisp-thread
               (or thread
                   (new-thread name stack-size  vstack-size  tstack-size)))
-        #+(and linux-target (not cvm-target))
+        #+linux-target
         (set-os-thread-name lisp-thread name)))
     (add-to-all-processes p)
     (setf (car (process-splice p)) p)
